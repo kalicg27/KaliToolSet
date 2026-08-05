@@ -34,5 +34,12 @@ private:
 
 	TSharedRef<SDockTab> OnSpawnImplementetionToolsTab(const FSpawnTabArgs& SpawnTabArgs);
 
+
+#pragma endregion
+
+#pragma region CustomToolsFunction
+
+	void SetForcedLOD(int32 LODLevel);
+
 #pragma endregion
 };

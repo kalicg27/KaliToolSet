@@ -7,6 +7,9 @@
 #include "ObjectTools.h"
 #include "AssetToolsModule.h"
 #include "SlateWidgets/ImplToolsWidget.h"
+#include "HAL/IConsoleManager.h"
+#include "Widgets/Input/SButton.h"
+#include "Widgets/Text/STextBlock.h"
 
 #define LOCTEXT_NAMESPACE "FKaliToolsModule"
 
@@ -106,8 +109,27 @@ TSharedRef<SDockTab> FKaliToolsModule::OnSpawnImplementetionToolsTab(const FSpaw
 	];
 	 
 }
+
 #pragma endregion
 
+#pragma region CustomToolsFunction
+
+void FKaliToolsModule::SetForcedLOD(int32 LODLevel)
+{
+	static IConsoleVariable* CVarNanite = IConsoleManager::Get().FindConsoleVariable(TEXT("r.nanite"));
+	if (CVarNanite)
+	{
+		CVarNanite->Set(0, ECVF_SetByCode);
+	}
+
+	static IConsoleVariable* CVarForceLOD = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ForceLOD"));
+	if (CVarForceLOD)
+	{
+		CVarForceLOD->Set(LODLevel, ECVF_SetByCode);
+	}
+}
+
+#pragma endregion
 void FKaliToolsModule::ShutdownModule()
 {
 	// This function may be called during shutdown to clean up your module.  For modules that support dynamic reloading,

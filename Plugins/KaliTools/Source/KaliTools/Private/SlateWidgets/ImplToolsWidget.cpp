@@ -20,5 +20,19 @@ void SImplToolsTab::Construct(const FArguments& InArgs)
 						.Justification(ETextJustify::Center)
 						.ColorAndOpacity(FColor::White)
 				]
+			+ SVerticalBox::Slot()
+				.AutoHeight()
+				[
+					SNew(SButton)
+						.Text(FText::FromString(TEXT("Force to LOD0")))
+						.OnClicked_Lambda([this]()
+							{
+								SetForcedLOD(0);
+
+							})
+
+				]
+			
 		];
+
 }
