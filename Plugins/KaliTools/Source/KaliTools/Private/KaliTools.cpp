@@ -2,14 +2,18 @@
 
 #include "KaliTools.h"
 #include "ContentBrowserModule.h"
+#include "DebugHeader.h"
 
 #define LOCTEXT_NAMESPACE "FKaliToolsModule"
 
 void FKaliToolsModule::StartupModule()
 {
 	InitCBMenuExtention();
+	RegistesterImplementetionToolsTab();
+
 	
 }
+static const FName ImplementationToolsTabId("ImplementetionTools");
 #pragma region ContentBrowserMenuExtention
 void FKaliToolsModule::InitCBMenuExtention()
 {	
@@ -63,16 +67,36 @@ void FKaliToolsModule::AddCBMenuEntryOwn(FMenuBuilder& MenuBuilder)
 		FText::FromString(TEXT("ImplementetionTools")),
 		FText::FromString(TEXT("Tools for Implementetion team")),
 		FSlateIcon(),
-		FExecuteAction::CreateRaw(this, &FKaliToolsModule::OnMyOwnPluginButtonClicked)
+		FExecuteAction::CreateRaw(this, &FKaliToolsModule::OnImplementetionToolsButtonClicked)
 	);
 }
 void FKaliToolsModule::OnMyOwnPluginButtonClicked()
 {
-	
+	//nothin just test
+	//UE_LOG(LogTemp, Warning, TEXT("Should be working "));
 }
 
 void FKaliToolsModule::OnImplementetionToolsButtonClicked()
 {
+	FGlobalTabmanager::Get()->TryInvokeTab(FName(ImplementationToolsTabId));
+	
+}
+#pragma endregion
+
+#pragma region CustomEditorTab
+
+void FKaliToolsModule::RegistesterImplementetionToolsTab()
+{
+	FGlobalTabmanager::Get()->RegisterNomadTabSpawner(FName(ImplementationToolsTabId),
+		FOnSpawnTab::CreateRaw(this, &FKaliToolsModule::OnSpawnImplementetionToolsTab))
+		.SetDisplayName(FText::FromString(TEXT("Implmenetention Tools")));
+}
+
+TSharedRef<SDockTab> FKaliToolsModule::OnSpawnImplementetionToolsTab(const FSpawnTabArgs&)
+{
+	return
+	SNew(SDockTab).TabRole(ETabRole::NomadTab);
+	 
 }
 #pragma endregion
 

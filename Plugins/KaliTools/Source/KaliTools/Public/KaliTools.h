@@ -24,5 +24,15 @@ private:
 	void OnMyOwnPluginButtonClicked();
 	void OnImplementetionToolsButtonClicked();
 
+
+
+#pragma endregion
+
+#pragma region CustomEditorTab
+
+	void RegistesterImplementetionToolsTab();
+
+	TSharedRef<SDockTab> OnSpawnImplementetionToolsTab(const FSpawnTabArgs&);
+
 #pragma endregion
 };
