@@ -26,7 +26,7 @@ public class KaliTools : ModuleRules
 			new string[]
 			{
                 "Core",
-                "Blutility", "EditorScriptingUtilities", "AssetTools", "UnrealEd", "UMG", "Slate", "SlateCore", "Niagara", "ContentBrowser"
+                "Blutility", "EditorScriptingUtilities", "AssetTools", "UnrealEd", "UMG", "Slate", "SlateCore", "Niagara", "ContentBrowser", "AssetRegistry"
 				// ... add other public dependencies that you statically link with here ...
 			}
 			);
@@ -39,6 +39,10 @@ public class KaliTools : ModuleRules
 				"Engine",
 				"Slate",
 				"SlateCore",
+                "UnrealEd",
+				"EditorScriptingUtilities", 
+				"AssetTools"
+				
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);

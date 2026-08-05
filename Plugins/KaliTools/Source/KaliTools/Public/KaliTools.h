@@ -32,7 +32,7 @@ private:
 
 	void RegistesterImplementetionToolsTab();
 
-	TSharedRef<SDockTab> OnSpawnImplementetionToolsTab(const FSpawnTabArgs&);
+	TSharedRef<SDockTab> OnSpawnImplementetionToolsTab(const FSpawnTabArgs& SpawnTabArgs);
 
 #pragma endregion
 };

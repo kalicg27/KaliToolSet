@@ -3,6 +3,10 @@
 #include "KaliTools.h"
 #include "ContentBrowserModule.h"
 #include "DebugHeader.h"
+#include "EditorAssetLibrary.h"
+#include "ObjectTools.h"
+#include "AssetToolsModule.h"
+#include "SlateWidgets/ImplToolsWidget.h"
 
 #define LOCTEXT_NAMESPACE "FKaliToolsModule"
 
@@ -89,13 +93,17 @@ void FKaliToolsModule::RegistesterImplementetionToolsTab()
 {
 	FGlobalTabmanager::Get()->RegisterNomadTabSpawner(FName(ImplementationToolsTabId),
 		FOnSpawnTab::CreateRaw(this, &FKaliToolsModule::OnSpawnImplementetionToolsTab))
-		.SetDisplayName(FText::FromString(TEXT("Implmenetention Tools")));
+		.SetDisplayName(FText::FromString(TEXT("Implementetion Tools")));
 }
 
-TSharedRef<SDockTab> FKaliToolsModule::OnSpawnImplementetionToolsTab(const FSpawnTabArgs&)
+TSharedRef<SDockTab> FKaliToolsModule::OnSpawnImplementetionToolsTab(const FSpawnTabArgs &SpawnTabArgs)
 {
 	return
-	SNew(SDockTab).TabRole(ETabRole::NomadTab);
+	SNew(SDockTab).TabRole(ETabRole::NomadTab)
+	[
+		SNew(SImplToolsTab)
+			.TestString(TEXT(" here is some data to pass"))
+	];
 	 
 }
 #pragma endregion
