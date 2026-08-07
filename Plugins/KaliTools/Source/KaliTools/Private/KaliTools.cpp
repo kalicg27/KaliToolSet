@@ -10,6 +10,9 @@
 #include "HAL/IConsoleManager.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Text/STextBlock.h"
+#include "WorkspaceMenuStructure.h"
+#include "WorkspaceMenuStructureModule.h"
+
 
 #define LOCTEXT_NAMESPACE "FKaliToolsModule"
 
@@ -17,7 +20,7 @@ void FKaliToolsModule::StartupModule()
 {
 	InitCBMenuExtention();
 	RegistesterImplementetionToolsTab();
-
+	
 	
 }
 static const FName ImplementationToolsTabId("ImplementetionTools");
@@ -48,11 +51,14 @@ TSharedRef<FExtender> FKaliToolsModule::CustomCBMenuExtender(const TArray<FStrin
 			EExtensionHook::After,
 			TSharedPtr<FUICommandList>(),
 			FMenuExtensionDelegate::CreateRaw(this, &FKaliToolsModule::AddCBMenuEntry));
+		
 
 		MenuExtender->AddMenuExtension(FName("AddToFavorites"),
 			EExtensionHook::After,
 			TSharedPtr<FUICommandList>(),
 			FMenuExtensionDelegate::CreateRaw(this, &FKaliToolsModule::AddCBMenuEntryOwn));
+
+		FolderPathsSelected = SelectedPaths;
 	}
 	return MenuExtender;
 }
@@ -105,11 +111,49 @@ TSharedRef<SDockTab> FKaliToolsModule::OnSpawnImplementetionToolsTab(const FSpaw
 	SNew(SDockTab).TabRole(ETabRole::NomadTab)
 	[
 		SNew(SImplToolsTab)
-			.TestString(TEXT(" here is some data to pass"))
+		.AssetsDataToStore(GetAllSelectedAssets())
 	];
 	 
 }
 
+
+//TSharedRef<SDockTab> FKaliToolsModule::ImplBlueprintSetUpTab(const FSpawnTabArgs& SpawnTabArgs)
+//{
+//	return TSharedRef<SDockTab>();
+//}
+
+TArray<TSharedPtr<FAssetData>> FKaliToolsModule::GetAllSelectedAssets()
+{
+	TArray<TSharedPtr<FAssetData>> AvailableAssetsData;
+
+	if (FolderPathsSelected.Num() == 0)
+	{
+		return AvailableAssetsData;
+	}
+
+	TArray<FString> AssetsPathNames = UEditorAssetLibrary::ListAssets(FolderPathsSelected[0], true );
+
+	for (const FString& AssetPathName : AssetsPathNames)
+	{
+		if (AssetPathName.Contains(TEXT("Developers")) ||
+			AssetPathName.Contains(TEXT("Collections")) ||
+			AssetPathName.Contains(TEXT("__ExternalActors__")) ||
+			AssetPathName.Contains(TEXT("__ExternalObjects__")))
+		{
+			continue;
+		}
+
+		if (!UEditorAssetLibrary::DoesAssetExist(AssetPathName))
+		{
+			continue;
+		}
+
+		const FAssetData Data = UEditorAssetLibrary::FindAssetData(AssetPathName);
+		AvailableAssetsData.Add(MakeShared<FAssetData>(Data));
+	}
+
+	return AvailableAssetsData;
+}
 #pragma endregion
 
 #pragma region CustomToolsFunction
@@ -129,7 +173,20 @@ void FKaliToolsModule::SetForcedLOD(int32 LODLevel)
 	}
 }
 
+bool FKaliToolsModule::DeleteSingleAssetForList(const FAssetData& AssetDataToDelete)
+{
+	TArray<FAssetData> AssetDatatForDeletion;
+	AssetDatatForDeletion.Add(AssetDataToDelete);
+
+	if (ObjectTools::DeleteAssets(AssetDatatForDeletion) > 0)
+	{
+		return true;
+	}
+	return false;
+}
+
 #pragma endregion
+
 void FKaliToolsModule::ShutdownModule()
 {
 	// This function may be called during shutdown to clean up your module.  For modules that support dynamic reloading,
