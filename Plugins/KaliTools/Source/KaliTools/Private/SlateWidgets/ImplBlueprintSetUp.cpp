@@ -26,7 +26,7 @@ void SImplBlueprintSetUp::Construct(const FArguments& InArgs)
 						.FillWidth(1.0f)
 						[
 							SNew(STextBlock)
-								.Text(FText::FromString(TEXT("Blueprint SetUp Assets")))
+								.Text(FText::FromString(TEXT("Blueprint SetUp Assets Main")))
 								.Font(TitleFont)
 								.ColorAndOpacity(FLinearColor::White)
 						]
