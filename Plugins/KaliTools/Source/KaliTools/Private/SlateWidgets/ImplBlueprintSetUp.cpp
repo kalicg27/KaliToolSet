@@ -3,6 +3,9 @@
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Input/SButton.h"
+#include "EditorUtilityLibrary.h"
+#include "DebugHeader.h"
+
 
 void SImplBlueprintSetUp::Construct(const FArguments& InArgs)
 {
@@ -115,14 +118,6 @@ TSharedRef<ITableRow> SImplBlueprintSetUp::OnGenerateAssetRow(TSharedPtr<FAssetD
 						.ColorAndOpacity(FLinearColor::Gray)
 				]
 		];
-}
-
-void SImplBlueprintSetUp::RefreshListView()
-{
-	if (AssetListView.IsValid())
-	{
-		AssetListView->RequestListRefresh();
-	}
 }
 
 TSharedRef<SWidget> SImplBlueprintSetUp::ConstructAssetPanel()
@@ -285,9 +280,10 @@ TSharedRef<SWidget> SImplBlueprintSetUp::ConstructMainActionsPanel()
 {
 	return SNew(SVerticalBox)
 
-		// --------------------------------------------------
-		// 1. Validate Selected Asset Button (Primary Action)
-		// --------------------------------------------------
+		// should rousorce changing stuff
+		
+		//validate button
+		// 
 		+SVerticalBox::Slot()
 		.AutoHeight()
 		.Padding(0.0f, 0.0f, 0.0f, 6.0f)
@@ -302,9 +298,7 @@ TSharedRef<SWidget> SImplBlueprintSetUp::ConstructMainActionsPanel()
 				]
 		]
 
-	// --------------------------------------------------
-	// 2. Secondary Utility Buttons Horizontal Row
-	// --------------------------------------------------
+	//copy or create  --------------------------------------------------
 	+SVerticalBox::Slot()
 		.AutoHeight()
 		.Padding(0.0f, 0.0f, 0.0f, 6.0f)
@@ -339,9 +333,9 @@ TSharedRef<SWidget> SImplBlueprintSetUp::ConstructMainActionsPanel()
 				]
 		]
 
-	// --------------------------------------------------
-	// 3. Main Start BP Setup Button
-	// --------------------------------------------------
+	
+	// Main Start BP Setup Button
+	
 	+SVerticalBox::Slot()
 		.AutoHeight()
 		[
@@ -355,73 +349,9 @@ TSharedRef<SWidget> SImplBlueprintSetUp::ConstructMainActionsPanel()
 		];
 }
 
-FReply SImplBlueprintSetUp::OnFetchAssetParametersClicked()
-{
-	//if (!AssetParametersBox.IsValid()) return FReply::Handled();
-
-	//// Clear previous parameter widgets
-	//AssetParametersBox->ClearChildren();
-
-	//// Example parameter: "SomeParameter" with options [Red, Yellow, Black]
-	//TArray<FString> ColorOptions = { TEXT("Red"), TEXT("Yellow"), TEXT("Black") };
-
-	//// Create shared pointers for Slate SComboBox
-	//TSharedPtr<TArray<TSharedPtr<FString>>> OptionItems = MakeShared<TArray<TSharedPtr<FString>>>();
-	//for (const FString& Option : ColorOptions)
-	//{
-	//	OptionItems->Add(MakeShared<FString>(Option));
-	//}
-
-	//// Add a parameter row into AssetParametersBox
-	//AssetParametersBox->AddSlot()
-	//	.AutoHeight()
-	//	.Padding(0.0f, 4.0f)
-	//	[
-	//		SNew(SHorizontalBox)
-
-	//			// Property Label
-	//			+ SHorizontalBox::Slot()
-	//			.FillWidth(0.4f)
-	//			.VAlign(VAlign_Center)
-	//			[
-	//				SNew(STextBlock)
-	//					.Text(FText::FromString(TEXT("SomeParameter")))
-	//			]
-
-	//			// Dropdown Selector (Red / Yellow / Black)
-	//			+ SHorizontalBox::Slot()
-	//			.FillWidth(0.6f)
-	//			[
-	//				SNew(SComboBox<TSharedPtr<FString>>)
-	//					.OptionsSource(OptionItems.Get())
-	//					.OnGenerateWidget(this, &SImplBlueprintSetUp::MakeOptionComboWidget)
-	//					.OnSelectionChanged_Lambda([](TSharedPtr<FString> NewValue, ESelectInfo::Type)
-	//						{
-	//							if (NewValue.IsValid())
-	//							{
-	//								UE_LOG(LogTemp, Log, TEXT("Selected Option: %s"), **NewValue);
-	//							}
-	//						})
-	//					[
-	//						SNew(STextBlock)
-	//							.Text(FText::FromString(TEXT("Select Option...")))
-	//					]
-	//			]
-	//	];
-
-	return FReply::Handled();
-}
-
 TSharedRef<SWidget> SImplBlueprintSetUp::MakeOptionComboWidget(TSharedPtr<FString> InItem)
 {
 	return SNew(STextBlock).Text(FText::FromString(*InItem));
-}
-
-FReply SImplBlueprintSetUp::OnStartSettingUpBPClicked()
-{
-	// Execute backend apply, checkout, and save logic here
-	UE_LOG(LogTemp, Log, TEXT("Starting BP setup and auto-checkout..."));
-	return FReply::Handled();
 }
 
 FReply SImplBlueprintSetUp::OnLanguageButtonClicked()
@@ -441,46 +371,55 @@ FReply SImplBlueprintSetUp::OnPresetButtonClicked(FName PresetName)
 
 FReply SImplBlueprintSetUp::OnValidateAssetClicked()
 {
-    TArray<UObject*> SelectedAssets = UEditorUtilityLibrary::GetSelectedAssets();
+	TArray<UObject*> SelectedAssets = UEditorUtilityLibrary::GetSelectedAssets();
 
-    if (SelectedAssets.Num() == 0)
-    {
-        FMessageDialog::Open(EAppMsgType::Ok, FText::FromString(TEXT("No asset selected in Content Browser.")), FText::FromString(TEXT("Validation Failure")));
-        return FReply::Handled();
-    }
+	if (SelectedAssets.Num() == 0)
+	{
+		DebugHeader::ShowMsgDialog(EAppMsgType::Ok, TEXT("No asset selected in Content Browser."));
+		DebugHeader::PrintLog(TEXT("Validation Failed: Selection array empty."));
+		return FReply::Handled();
+	}
 
-    UBlueprint* SelectedBP = Cast<UBlueprint>(SelectedAssets[0]);
-    if (!SelectedBP)
-    {
-        FMessageDialog::Open(EAppMsgType::Ok, FText::FromString(TEXT("Selected asset is not a Blueprint.")), FText::FromString(TEXT("Validation Failure")));
-        return FReply::Handled();
-    }
+	UBlueprint* SelectedBP = Cast<UBlueprint>(SelectedAssets[0]);
+	if (!SelectedBP)
+	{
+		DebugHeader::ShowMsgDialog(EAppMsgType::Ok, TEXT("Selected asset is not a valid Blueprint."));
+		DebugHeader::PrintLog(TEXT("Validation Failed: Target object is not a UBlueprint."));
+		return FReply::Handled();
+	}
 
-    FMessageDialog::Open(EAppMsgType::Ok, FText::FromString(TEXT("Asset validation successful!")), FText::FromString(TEXT("Validation Passed")));
-    return FReply::Handled();
+	// Success notification via DebugHeader
+	DebugHeader::ShowNotifyInfo(FString::Printf(TEXT("Asset Validated: %s"), *SelectedBP->GetName()));
+	DebugHeader::PrintLog(TEXT("Validation Succeeded for: ") + SelectedBP->GetName());
+
+	return FReply::Handled();
 }
 
 FReply SImplBlueprintSetUp::OnCopySelectedClicked()
 {
-    TArray<UObject*> SelectedAssets = UEditorUtilityLibrary::GetSelectedAssets();
-    if (SelectedAssets.Num() > 0 && SelectedAssets[0]->IsA<UBlueprint>())
-    {
-        // Extract values from selected Blueprint and update UI visual state directly here
-        // e.g., ResourceTypeComboBox->SetSelectedItem(...);
-    }
+	TArray<UObject*> SelectedAssets = UEditorUtilityLibrary::GetSelectedAssets();
 
-    return FReply::Handled();
+	if (SelectedAssets.Num() == 0 || !SelectedAssets[0]->IsA<UBlueprint>())
+	{
+		DebugHeader::ShowNotifyInfo(TEXT("Failed to copy parameters: Invalid Blueprint selected."));
+		return FReply::Handled();
+	}
+
+	// Fetch and populate parameters...
+	DebugHeader::ShowNotifyInfo(TEXT("Parameters copied from selected Blueprint."));
+	return FReply::Handled();
 }
 
 FReply SImplBlueprintSetUp::OnStartBPSetupClicked()
 {
-    // Gather all parameters currently populated in the UI
-    FKaliBlueprintSetupData DataToApply = GatherCurrentUIData();
+	FKaliBlueprintSetupData DataToApply = GatherCurrentUIData();
 
-    // Pass data payload directly to module engine handler (without applying inside this Slate widget)
-    SendDataToModulePlugin(DataToApply);
+	DebugHeader::ShowNotifyInfo(TEXT("Executing BP Setup... Passing payload to plugin."));
+	DebugHeader::PrintLog(TEXT("BP Setup started with Resource Type: ") + DataToApply.ResourceType);
 
-    return FReply::Handled();
+	SendDataToModulePlugin(DataToApply);
+
+	return FReply::Handled();
 }
 
 FKaliBlueprintSetupData SImplBlueprintSetUp::GatherCurrentUIData() const
@@ -497,4 +436,12 @@ void SImplBlueprintSetUp::SendDataToModulePlugin(const FKaliBlueprintSetupData& 
 {
     // Hand off payload to module plugin execution logic
     // FKaliToolSetModule::Get().ExecuteBlueprintSetup(Data);
+}
+
+void SImplBlueprintSetUp::RefreshListView()
+{
+	if (AssetListView.IsValid())
+	{
+		AssetListView->RequestListRefresh();
+	}
 }

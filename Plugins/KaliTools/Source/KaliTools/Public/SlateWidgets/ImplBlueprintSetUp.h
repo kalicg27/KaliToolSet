@@ -5,7 +5,11 @@
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/Views/SListView.h"
 #include "Widgets/Views/STableRow.h"
-
+struct FKaliBlueprintSetupData
+{
+	FString ResourceType;
+	FName RowName;
+};
 class SImplBlueprintSetUp : public SCompoundWidget
 {
 public:
@@ -29,8 +33,7 @@ private:
 	TSharedRef<SWidget> ConstructMainActionsPanel();
 
 	//buttons to have main
-	FReply OnFetchAssetParametersClicked();
-	FReply OnStartSettingUpBPClicked();
+
 
 	//might to delete if something goes wrong - no idea why this fuck is here
 	TSharedRef<SWidget> MakeOptionComboWidget(TSharedPtr<FString> InItem);
@@ -46,4 +49,16 @@ private:
 	FReply OnLanguageButtonClicked();
 	FReply OnReparentButtonClicked();
 	FReply OnPresetButtonClicked(FName PresetName);
+	FReply OnValidateAssetClicked();
+	FReply OnCopySelectedClicked();
+	FReply OnStartBPSetupClicked();
+
+	// UI Field References (Used purely to read/set UI values)
+	TSharedPtr<SComboBox<TSharedPtr<FString>>> ResourceTypeComboBox;
+	TArray<TSharedPtr<FString>> ResourceTypeOptions;
+
+
+	// Data Helpers
+	FKaliBlueprintSetupData GatherCurrentUIData() const;
+	void SendDataToModulePlugin(const FKaliBlueprintSetupData& Data);
 };
