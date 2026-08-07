@@ -44,7 +44,10 @@ public class KaliTools : ModuleRules
                 "LevelEditor",
                 "EditorScriptingUtilities", 
 				"AssetTools",
-                "WorkspaceMenuStructure"
+                "WorkspaceMenuStructure",
+                "KismetCompiler",
+				"Kismet",
+				"SourceControl"
 				
 				// ... add private dependencies that you statically link with here ...	
 			}
