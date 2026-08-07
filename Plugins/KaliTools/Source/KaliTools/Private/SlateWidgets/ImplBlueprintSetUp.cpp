@@ -5,7 +5,8 @@
 #include "Widgets/Input/SButton.h"
 #include "EditorUtilityLibrary.h"
 #include "DebugHeader.h"
-
+#include "Kismet2/KismetEditorUtilities.h"
+#include "UObject/UnrealType.h"
 
 void SImplBlueprintSetUp::Construct(const FArguments& InArgs)
 {
@@ -282,8 +283,21 @@ TSharedRef<SWidget> SImplBlueprintSetUp::ConstructMainActionsPanel()
 
 		// should rousorce changing stuff
 		
-		//validate button
-		// 
+		
+		+SVerticalBox::Slot()
+		.AutoHeight()
+		.Padding(0.0f, 0.0f, 0.0f, 8.0f)
+		[
+			SNew(SButton)
+				.HAlign(HAlign_Center)
+				.VAlign(VAlign_Center)
+				.OnClicked(this, &SImplBlueprintSetUp::OnInspectVariablesClicked)
+				[
+					SNew(STextBlock)
+						.Text(FText::FromString(TEXT("Get ALl Variables")))
+				]
+		]
+	//validate button
 		+SVerticalBox::Slot()
 		.AutoHeight()
 		.Padding(0.0f, 0.0f, 0.0f, 6.0f)
@@ -444,4 +458,63 @@ void SImplBlueprintSetUp::RefreshListView()
 	{
 		AssetListView->RequestListRefresh();
 	}
+}
+
+FReply SImplBlueprintSetUp::OnInspectVariablesClicked()
+{
+	TArray<UObject*> SelectedAssets = UEditorUtilityLibrary::GetSelectedAssets();
+
+	if (SelectedAssets.Num() == 0)
+	{
+		DebugHeader::ShowMsgDialog(EAppMsgType::Ok, TEXT("No asset selected in Content Browser."));
+		DebugHeader::PrintLog(TEXT("Validation Failed: Selection array empty."));
+		return FReply::Handled();
+	}
+
+	UBlueprint* SelectedBP = Cast<UBlueprint>(SelectedAssets[0]);
+	if (!SelectedBP)
+	{
+		DebugHeader::ShowMsgDialog(EAppMsgType::Ok, TEXT("Selected asset is not a valid Blueprint."));
+		DebugHeader::PrintLog(TEXT("Validation Failed: Target object is not a UBlueprint."));
+		return FReply::Handled();
+	}
+
+	// Make sure the class is compiled so GeneratedClass exists
+	if (!SelectedBP->GeneratedClass)
+	{
+		FKismetEditorUtilities::CompileBlueprint(SelectedBP);
+	}
+
+	if (SelectedBP->GeneratedClass)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("================ INSpectING BLUEPRINT: %s ================"), *SelectedBP->GetName());
+
+		int32 VariableCount = 0;
+
+		// Iterate over all variables defined in this Blueprint (excluding inherited parent variables)
+		for (TFieldIterator<FProperty> PropertyIt(SelectedBP->GeneratedClass, EFieldIteratorFlags::ExcludeSuper); PropertyIt; ++PropertyIt)
+		{
+			FProperty* Property = *PropertyIt;
+
+			// Internal C++ variable name
+			FName PropertyName = Property->GetFName();
+
+			// Data type (e.g., "ByteProperty", "StructProperty", "ArrayProperty")
+			FString PropertyType = Property->GetCPPType();
+
+			// Output to log window
+			UE_LOG(LogTemp, Warning, TEXT("Variable [%d]: %s | Type: %s"), VariableCount, *PropertyName.ToString(), *PropertyType);
+
+			VariableCount++;
+		}
+
+		UE_LOG(LogTemp, Warning, TEXT("=================================================================="));
+
+		// Success notification
+		FString NotifyMsg = FString::Printf(TEXT("Inspected %s: Found %d variables (Check Output Log)"), *SelectedBP->GetName(), VariableCount);
+		DebugHeader::ShowNotifyInfo(NotifyMsg);
+		DebugHeader::PrintLog(NotifyMsg);
+	}
+
+	return FReply::Handled();
 }

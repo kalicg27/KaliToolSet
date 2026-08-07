@@ -52,7 +52,7 @@ private:
 	FReply OnValidateAssetClicked();
 	FReply OnCopySelectedClicked();
 	FReply OnStartBPSetupClicked();
-
+	FReply OnInspectVariablesClicked();
 	// UI Field References (Used purely to read/set UI values)
 	TSharedPtr<SComboBox<TSharedPtr<FString>>> ResourceTypeComboBox;
 	TArray<TSharedPtr<FString>> ResourceTypeOptions;
@@ -61,4 +61,6 @@ private:
 	// Data Helpers
 	FKaliBlueprintSetupData GatherCurrentUIData() const;
 	void SendDataToModulePlugin(const FKaliBlueprintSetupData& Data);
+
+	//
 };
