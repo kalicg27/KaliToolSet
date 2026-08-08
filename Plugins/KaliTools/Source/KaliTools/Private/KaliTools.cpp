@@ -14,6 +14,11 @@
 #include "WorkspaceMenuStructureModule.h"
 #include "ImplPresetPluginData.h"
 
+#include "Engine/Blueprint.h"
+#include "Kismet2/KismetEditorUtilities.h"
+#include "FileHelpers.h"
+#include "Editor.h"
+
 #define LOCTEXT_NAMESPACE "FKaliToolsModule"
 
 void FKaliToolsModule::StartupModule()
@@ -262,6 +267,119 @@ bool FKaliToolsModule::CopyParametersFromBlueprint(const FAssetData& AssetData, 
 	return true;
 }
 
+bool FKaliToolsModule::FetchBlueprintProperties(UBlueprint* TargetBP, const TArray<FName>& PropertyNames, TMap<FName, FString>& OutValues)
+{
+	OutValues.Empty();
+
+	if (!TargetBP || !TargetBP->GeneratedClass)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[KaliTools] Target Blueprint or GeneratedClass is invalid."));
+		return false;
+	}
+
+	UObject* CDO = TargetBP->GeneratedClass->GetDefaultObject();
+	if (!CDO)
+	{
+		return false;
+	}
+
+	for (const FName& PropName : PropertyNames)
+	{
+		FProperty* Property = FindFProperty<FProperty>(TargetBP->GeneratedClass, PropName);
+		if (Property)
+		{
+			const void* ValuePtr = Property->ContainerPtrToValuePtr<void>(CDO);
+			FString ExportedText;
+			Property->ExportTextItem_Direct(ExportedText, ValuePtr, nullptr, CDO, PPF_None);
+
+			OutValues.Add(PropName, ExportedText);
+			UE_LOG(LogTemp, Log, TEXT("[KaliTools] Fetched '%s': %s"), *PropName.ToString(), *ExportedText);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[KaliTools] Property '%s' not found on '%s'"), *PropName.ToString(), *TargetBP->GetName());
+		}
+	}
+
+	return true;
+}
+
+bool FKaliToolsModule::ApplyBlueprintProperties(UBlueprint* TargetBP, const TMap<FName, FString>& PropertyValuesToApply)
+{
+	if (!TargetBP || !TargetBP->GeneratedClass)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[KaliTools] Cannot apply changes: Blueprint is invalid."));
+		return false;
+	}
+
+	UObject* CDO = TargetBP->GeneratedClass->GetDefaultObject();
+	UPackage* Package = TargetBP->GetOutermost();
+
+	if (!CDO || !Package)
+	{
+		return false;
+	}
+
+	// 1. Transaction Support (Undo/Redo)
+	GEditor->BeginTransaction(FText::FromString("Modify Blueprint CDO Values via KaliTools"));
+
+	CDO->Modify();
+	TargetBP->Modify();
+
+	bool bPropertyChanged = false;
+
+	for (const TPair<FName, FString>& Pair : PropertyValuesToApply)
+	{
+		const FName& PropName = Pair.Key;
+		const FString& NewTextValue = Pair.Value;
+
+		FProperty* Property = FindFProperty<FProperty>(TargetBP->GeneratedClass, PropName);
+		if (Property)
+		{
+			void* ValuePtr = Property->ContainerPtrToValuePtr<void>(CDO);
+
+			// Import text string into CDO memory location
+			Property->ImportText_Direct(*NewTextValue, ValuePtr, CDO, PPF_None);
+
+			// Notify reflection system
+			FPropertyChangedEvent PropertyChangeEvent(Property, EPropertyChangeType::ValueSet);
+			CDO->PostEditChangeProperty(PropertyChangeEvent);
+
+			bPropertyChanged = true;
+		}
+	}
+
+	// 2. Recompile Blueprint
+	if (bPropertyChanged)
+	{
+		FKismetEditorUtilities::CompileBlueprint(TargetBP);
+	}
+
+	GEditor->EndTransaction();
+
+	// 3. Mark Package Dirty & Automatic Checkout/Save
+	if (bPropertyChanged)
+	{
+		Package->MarkPackageDirty();
+
+		TArray<UPackage*> PackagesToSave;
+		PackagesToSave.Add(Package);
+
+		FEditorFileUtils::EPromptReturnCode SaveResult = FEditorFileUtils::PromptForCheckoutAndSave(PackagesToSave, false, false);
+
+		if (SaveResult == FEditorFileUtils::EPromptReturnCode::PR_Success)
+		{
+			UE_LOG(LogTemp, Log, TEXT("[KaliTools] Successfully saved Blueprint asset: %s"), *TargetBP->GetName());
+			return true;
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[KaliTools] Save/Checkout failed for: %s"), *TargetBP->GetName());
+		}
+	}
+
+	return bPropertyChanged;
+}
 #pragma endregion
 
 void FKaliToolsModule::ShutdownModule()

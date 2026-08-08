@@ -64,5 +64,11 @@ public:
 	TArray<FName> GetRowNamesFromCurveTable(UCurveTable* TargetCurveTable);
 	UCurveTable* GetDefaultCurveTable();
 	UDataTable* GetDefaultDataTable();
+
+	/** Fetch CDO properties into string representation */
+	static bool FetchBlueprintProperties(UBlueprint* TargetBP, const TArray<FName>& PropertyNames, TMap<FName, FString>& OutValues);
+
+	/** Apply string properties back to CDO, recompile, and save/checkout */
+	static bool ApplyBlueprintProperties(UBlueprint* TargetBP, const TMap<FName, FString>& PropertyValuesToApply);
 #pragma endregion
 };
