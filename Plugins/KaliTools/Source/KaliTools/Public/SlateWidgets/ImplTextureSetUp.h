@@ -7,6 +7,9 @@
 #include "Widgets/Input/SComboBox.h"
 #include "AssetRegistry/AssetData.h"
 #include "ImplToolsSetTypes.h"   
+
+#include "Styling/SlateBrush.h"
+
 class SImplTextureSetUp : public SCompoundWidget
 {
 public:
@@ -24,9 +27,10 @@ private:
 
     TSharedPtr<STextBlock> StatusTextBlock;
     FText StatusText;
-
+    FText FetchedAssetNameText;
+    const FSlateBrush* FetchedAssetIconBrush = nullptr;
     void RebuildPropertyRowsUI();
-
+    void UpdateFetchedAssetHeader(UBlueprint* InBlueprint);
     // 👈 Declare missing Slate combo box delegates
     TSharedRef<SWidget> GenerateEnumComboWidget(TSharedPtr<FString> InItem);
     FText GetCurrentEnumText(FName PropName) const;

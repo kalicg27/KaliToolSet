@@ -15,7 +15,8 @@
 #include "Engine/EngineTypes.h" 
 #include "Engine/Engine.h"
 
-
+#include "ClassIconFinder.h"
+#include "Styling/SlateIconFinder.h"
 
 void SImplTextureSetUp::Construct(const FArguments& InArgs)
 {
@@ -28,11 +29,50 @@ void SImplTextureSetUp::Construct(const FArguments& InArgs)
     // Enum Registration using Shared Utility
     FImplToolsPropertyUtils::AddEnumProperty(TrackedProperties, FName("NetDormancy"), StaticEnum<ENetDormancy>(), TEXT("DORM_Awake"));
     FImplToolsPropertyUtils::AddEnumProperty(TrackedProperties, FName("PhysicsReplicationMode"), StaticEnum<EPhysicsReplicationMode>(), TEXT("Default"));
+    FImplToolsPropertyUtils::AddEnumProperty(TrackedProperties, FName("SpawnCollisionHandlingMethod"),
+        StaticEnum<ESpawnActorCollisionHandlingMethod>(), TEXT("Defaul Watherever"));
+    
     StatusText = FText::FromString("Select a Blueprint asset and click 'Validate' or 'Fetch'.");
+
+    FetchedAssetNameText = FText::FromString("No Blueprint Loaded");
+    FetchedAssetIconBrush = FAppStyle::GetBrush("Icons.Help"); // Fallback icon
     ChildSlot
         [
             SNew(SVerticalBox)
 
+                + SVerticalBox::Slot()
+                .AutoHeight()
+                .Padding(5.0f)
+                [
+                    SNew(SBorder)
+                        .Padding(8.0f)
+                        .BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
+                        [
+                            SNew(SHorizontalBox)
+
+                                // Asset Class Icon (Same as Content Browser)
+                                + SHorizontalBox::Slot()
+                                .AutoWidth()
+                                .VAlign(VAlign_Center)
+                                .Padding(0.0f, 0.0f, 8.0f, 0.0f)
+                                [
+                                    SNew(SImage)
+                                        .Image_Lambda([this]() { return FetchedAssetIconBrush; })
+                                        .DesiredSizeOverride(FVector2D(24.0f, 24.0f))
+                                ]
+
+                                // Asset Name Label
+                                + SHorizontalBox::Slot()
+                                .FillWidth(1.0f)
+                                .VAlign(VAlign_Center)
+                                [
+                                    SNew(STextBlock)
+                                        .Text_Lambda([this]() { return FetchedAssetNameText; })
+                                        .Font(FAppStyle::GetFontStyle("PropertyWindow.BoldFont"))
+                                ]
+                        ]
+                ]
+            //status
                 + SVerticalBox::Slot()
                 .AutoHeight()
                 .Padding(5.0f)
@@ -163,6 +203,33 @@ void SImplTextureSetUp::OnEnumSelectionChanged(TSharedPtr<FString> NewValue, ESe
     }
 }
 
+void SImplTextureSetUp::UpdateFetchedAssetHeader(UBlueprint* InBlueprint)
+{
+    if (InBlueprint)
+    {
+        SelectedBlueprint = InBlueprint;
+        FetchedAssetNameText = FText::FromString(InBlueprint->GetName());
+
+        // 👈 Use .Get() on GeneratedClass to resolve to raw UClass*
+        UClass* TargetClass = InBlueprint->GeneratedClass.Get() ? InBlueprint->GeneratedClass.Get() : InBlueprint->GetClass();
+
+        FSlateIcon AssetIcon = FSlateIconFinder::FindIconForClass(TargetClass);
+
+        FetchedAssetIconBrush = AssetIcon.GetIcon();
+        if (!FetchedAssetIconBrush || FetchedAssetIconBrush == FAppStyle::GetDefaultBrush())
+        {
+            // Fallback for Blueprint assets
+            FetchedAssetIconBrush = FAppStyle::GetBrush("ClassIcon.Blueprint");
+        }
+    }
+    else
+    {
+        SelectedBlueprint.Reset();
+        FetchedAssetNameText = FText::FromString("No Blueprint Loaded");
+        FetchedAssetIconBrush = FAppStyle::GetBrush("Icons.Help");
+    }
+}
+
 FReply SImplTextureSetUp::OnFetchPressed()
 {
     FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
@@ -180,16 +247,24 @@ FReply SImplTextureSetUp::OnFetchPressed()
         }
     }
 
-    if (!TargetBP) return FReply::Handled();
+    if (!TargetBP)
+    {
+        UpdateFetchedAssetHeader(nullptr);
+        StatusText = FText::FromString("No valid Blueprint selected in Content Browser!");
+        return FReply::Handled();
+    }
 
-    SelectedBlueprint = TargetBP;
+    // 1. Update UI Header (Icon + Asset Name)
+    UpdateFetchedAssetHeader(TargetBP);
 
+    // 2. Extract target property names
     TArray<FName> NamesToFetch;
     for (const FPropertyRowData& Row : TrackedProperties)
     {
         NamesToFetch.Add(Row.PropertyName);
     }
 
+    // 3. Fetch reflection values from Blueprint
     TMap<FName, FString> FetchedValues;
     if (FKaliToolsModule::FetchBlueprintProperties(TargetBP, NamesToFetch, FetchedValues))
     {
@@ -205,11 +280,12 @@ FReply SImplTextureSetUp::OnFetchPressed()
                 }
                 else if (Row.RowType == EPropertyRowType::Enum && Row.ComboBoxWidget.IsValid())
                 {
-                    // Select matching option in dropdown list
+                    // Match and select item in dropdown menu
                     for (const TSharedPtr<FString>& Option : Row.EnumOptions)
                     {
-                        if (*Option == *FoundVal)
+                        if (Option.IsValid() && *Option == *FoundVal)
                         {
+                            Row.SelectedEnumOption = Option;
                             Row.ComboBoxWidget->SetSelectedItem(Option);
                             break;
                         }
@@ -217,6 +293,12 @@ FReply SImplTextureSetUp::OnFetchPressed()
                 }
             }
         }
+
+        StatusText = FText::FromString(FString::Printf(TEXT("Successfully fetched properties from '%s'!"), *TargetBP->GetName()));
+    }
+    else
+    {
+        StatusText = FText::FromString(FString::Printf(TEXT("Failed to read properties from '%s'."), *TargetBP->GetName()));
     }
 
     return FReply::Handled();
@@ -295,6 +377,8 @@ FReply SImplTextureSetUp::OnApplyPressed()
     return FReply::Handled();
 }
 
+
+
 FReply SImplTextureSetUp::OnValidatePressed()
 {
     FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
@@ -343,3 +427,4 @@ FReply SImplTextureSetUp::OnValidatePressed()
 
     return FReply::Handled();
 }
+
