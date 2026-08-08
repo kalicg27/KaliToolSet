@@ -5,11 +5,10 @@
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/Views/SListView.h"
 #include "Widgets/Views/STableRow.h"
-struct FKaliBlueprintSetupData
-{
-	FString ResourceType;
-	FName RowName;
-};
+#include "AssetRegistry/AssetData.h"
+
+#include "ImplPresetPluginData.h"
+
 class SImplBlueprintSetUp : public SCompoundWidget
 {
 public:
@@ -28,24 +27,26 @@ private:
 
 	TSharedPtr<SVerticalBox> AssetParametersBox;
 
-	//construct for main two parts
+	// Panel Builders
 	TSharedRef<SWidget> ConstructAssetPanel();
 	TSharedRef<SWidget> ConstructMainActionsPanel();
 
-	//buttons to have main
-
-
-	//might to delete if something goes wrong - no idea why this fuck is here
+	// ListView Helpers
 	TSharedRef<SWidget> MakeOptionComboWidget(TSharedPtr<FString> InItem);
-	/** ListView Row Generator Callback */
 	TSharedRef<ITableRow> OnGenerateAssetRow(TSharedPtr<FAssetData> AssetDataToDisplay, const TSharedRef<STableViewBase>& OwnerTable);
-
-	/** Refresh the UI list view */
 	void RefreshListView();
 
+	// Dynamic Attributes & Display Data
 	TArray<TSharedPtr<TArray<TSharedPtr<FString>>>> DynamicAllRowOptionsSources;
+	FAssetData CurrentSelectedAssetData;
+	FString CurrentSelectedParentClassName = TEXT("None");
+	FKaliBlueprintSetupParams CurrentSetupParams;
 
-	// the buttons more here
+	FText GetSelectedAssetNameText() const;
+	FText GetSelectedParentClassNameText() const;
+	const FSlateBrush* GetSelectedAssetIcon() const;
+
+	// Button Event Callbacks
 	FReply OnLanguageButtonClicked();
 	FReply OnReparentButtonClicked();
 	FReply OnPresetButtonClicked(FName PresetName);
@@ -53,14 +54,12 @@ private:
 	FReply OnCopySelectedClicked();
 	FReply OnStartBPSetupClicked();
 	FReply OnInspectVariablesClicked();
-	// UI Field References (Used purely to read/set UI values)
+
+	// UI Field References
 	TSharedPtr<SComboBox<TSharedPtr<FString>>> ResourceTypeComboBox;
 	TArray<TSharedPtr<FString>> ResourceTypeOptions;
 
-
-	// Data Helpers
+	// Data Flow Helpers
 	FKaliBlueprintSetupData GatherCurrentUIData() const;
 	void SendDataToModulePlugin(const FKaliBlueprintSetupData& Data);
-
-	//
 };

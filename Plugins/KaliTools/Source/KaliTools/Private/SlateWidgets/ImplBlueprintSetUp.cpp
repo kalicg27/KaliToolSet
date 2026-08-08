@@ -3,10 +3,20 @@
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Input/SButton.h"
+#include "Widgets/Input/SCheckBox.h"
+#include "Widgets/Layout/SExpandableArea.h"
+#include "Widgets/Images/SImage.h"
+#include "Styling/SlateIconFinder.h"
 #include "EditorUtilityLibrary.h"
 #include "DebugHeader.h"
 #include "Kismet2/KismetEditorUtilities.h"
 #include "UObject/UnrealType.h"
+#include "KaliTools.h"
+#include "ImplPresetPluginData.h"
+
+#include "AssetRegistry/AssetRegistryModule.h" // Required for FAssetRegistryModule
+#include "AssetRegistry/AssetData.h"
+
 
 void SImplBlueprintSetUp::Construct(const FArguments& InArgs)
 {
@@ -415,19 +425,49 @@ FReply SImplBlueprintSetUp::OnCopySelectedClicked()
 
 	if (SelectedAssets.Num() == 0 || !SelectedAssets[0]->IsA<UBlueprint>())
 	{
-		DebugHeader::ShowNotifyInfo(TEXT("Failed to copy parameters: Invalid Blueprint selected."));
+		CurrentSelectedAssetData = FAssetData();
+		CurrentSelectedParentClassName = TEXT("None");
 		return FReply::Handled();
 	}
 
-	// Fetch and populate parameters...
+	UBlueprint* SelectedBP = Cast<UBlueprint>(SelectedAssets[0]);
+
+	// 1. Force compilation if necessary so generated class info exists
+	if (!SelectedBP->GeneratedClass)
+	{
+		FKismetEditorUtilities::CompileBlueprint(SelectedBP);
+	}
+
+	// 2. Obtain valid FAssetData via the Content Browser Asset Registry
+	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+	CurrentSelectedAssetData = AssetRegistryModule.Get().GetAssetByObjectPath(FSoftObjectPath(SelectedBP));
+
+	// Fallback if Asset Registry fetch returns empty
+	if (!CurrentSelectedAssetData.IsValid())
+	{
+		CurrentSelectedAssetData = FAssetData(SelectedBP);
+	}
+
+	// 3. Resolve the definite Parent Class Type
+	if (SelectedBP->ParentClass)
+	{
+		CurrentSelectedParentClassName = SelectedBP->ParentClass->GetName();
+	}
+	else
+	{
+		CurrentSelectedParentClassName = TEXT("Unknown");
+	}
+
 	DebugHeader::ShowNotifyInfo(TEXT("Parameters copied from selected Blueprint."));
 	return FReply::Handled();
 }
+
 
 FReply SImplBlueprintSetUp::OnStartBPSetupClicked()
 {
 	FKaliBlueprintSetupData DataToApply = GatherCurrentUIData();
 
+	// Fix: Scope resolution for static class method
 	DebugHeader::ShowNotifyInfo(TEXT("Executing BP Setup... Passing payload to plugin."));
 	DebugHeader::PrintLog(TEXT("BP Setup started with Resource Type: ") + DataToApply.ResourceType);
 
@@ -438,12 +478,12 @@ FReply SImplBlueprintSetUp::OnStartBPSetupClicked()
 
 FKaliBlueprintSetupData SImplBlueprintSetUp::GatherCurrentUIData() const
 {
-    FKaliBlueprintSetupData Data;
-    if (ResourceTypeComboBox.IsValid() && ResourceTypeComboBox->GetSelectedItem().IsValid())
-    {
-        Data.ResourceType = *ResourceTypeComboBox->GetSelectedItem();
-    }
-    return Data;
+	FKaliBlueprintSetupData Data;
+	if (ResourceTypeComboBox.IsValid() && ResourceTypeComboBox->GetSelectedItem().IsValid())
+	{
+		Data.ResourceType = *ResourceTypeComboBox->GetSelectedItem();
+	}
+	return Data;
 }
 
 void SImplBlueprintSetUp::SendDataToModulePlugin(const FKaliBlueprintSetupData& Data)

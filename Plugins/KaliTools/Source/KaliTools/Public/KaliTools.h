@@ -5,7 +5,7 @@
 #include "Modules/ModuleManager.h"
 #include "Framework/Docking/TabManager.h"
 #include "Widgets/Docking/SDockTab.h"
-
+#include "ImplPresetPluginData.h"
 
 
 // 2. Struct to hold metadata for batch registration
@@ -23,7 +23,10 @@ public:
 	/** IModuleInterface implementation */
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
-
+	static FKaliToolsModule& Get()
+	{
+		return FModuleManager::LoadModuleChecked<FKaliToolsModule>("KaliTools");
+	}
 private:
 
 #pragma region ContentBrowserMenuExtention
@@ -56,6 +59,10 @@ public:
 
 	static void SetForcedLOD(int32 LODLevel);
 	static bool DeleteSingleAssetForList(const FAssetData& AssetDataToDelete);
-
+	bool CopyParametersFromBlueprint(const FAssetData& AssetData, FKaliBlueprintSetupParams& OutParams);
+	UCurveTable* FetchCurveTableFromBlueprint(const FAssetData& AssetData);
+	TArray<FName> GetRowNamesFromCurveTable(UCurveTable* TargetCurveTable);
+	UCurveTable* GetDefaultCurveTable();
+	UDataTable* GetDefaultDataTable();
 #pragma endregion
 };

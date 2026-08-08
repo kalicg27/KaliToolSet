@@ -27,7 +27,7 @@ public class KaliTools : ModuleRules
 			{
                 "Core",
                 "Blutility", "EditorScriptingUtilities", "AssetTools", "UnrealEd", "UMG", "Slate", "SlateCore", "Niagara", "ContentBrowser", "AssetRegistry",
-				"InputCore"
+				"InputCore", "GameplayTags"
 				// ... add other public dependencies that you statically link with here ...
 			}
 			);
