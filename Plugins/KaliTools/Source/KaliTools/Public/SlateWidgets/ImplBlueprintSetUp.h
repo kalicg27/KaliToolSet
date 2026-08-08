@@ -5,6 +5,8 @@
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/Views/SListView.h"
 #include "Widgets/Views/STableRow.h"
+#include "AssetRegistry/AssetData.h"
+#include "KaliToolsPresets.h"
 struct FKaliBlueprintSetupData
 {
 	FString ResourceType;
@@ -33,8 +35,9 @@ private:
 	TSharedRef<SWidget> ConstructMainActionsPanel();
 
 	//buttons to have main
-
-
+	TArray<TSharedPtr<FName>> CurveRowOptions;
+	FAssetData CurrentSelectedAsset;
+	FKaliBlueprintSetupParams CurrentSetupParams;
 	//might to delete if something goes wrong - no idea why this fuck is here
 	TSharedRef<SWidget> MakeOptionComboWidget(TSharedPtr<FString> InItem);
 	/** ListView Row Generator Callback */
@@ -61,6 +64,8 @@ private:
 	// Data Helpers
 	FKaliBlueprintSetupData GatherCurrentUIData() const;
 	void SendDataToModulePlugin(const FKaliBlueprintSetupData& Data);
+
+	void RefreshDynamicDropdowns();
 
 	//
 };

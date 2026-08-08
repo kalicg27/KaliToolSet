@@ -13,9 +13,25 @@
 #include "WorkspaceMenuStructure.h"
 #include "WorkspaceMenuStructureModule.h"
 
+#include "Engine/Blueprint.h"
+#include "Engine/CurveTable.h"
+#include "Engine/DataTable.h"
+#include "Editor/UnrealEd/Public/Kismet2/KismetEditorUtilities.h"
+#include "SourceControlHelpers.h"
+#include "FileHelpers.h"
+#include "KaliToolsPresets.h"
 
 #define LOCTEXT_NAMESPACE "FKaliToolsModule"
 
+UCurveTable* FKaliToolsModule::GetDefaultCurveTable()
+{
+	return Cast<UCurveTable>(FKaliToolsPresets::DefaultCurveTablePath.TryLoad());
+}
+
+UDataTable* FKaliToolsModule::GetDefaultDataTable()
+{
+	return Cast<UDataTable>(FKaliToolsPresets::DefaultDataTablePath.TryLoad());
+}
 void FKaliToolsModule::StartupModule()
 {
 	InitCBMenuExtention();
@@ -183,6 +199,125 @@ bool FKaliToolsModule::DeleteSingleAssetForList(const FAssetData& AssetDataToDel
 		return true;
 	}
 	return false;
+}
+
+UCurveTable* FKaliToolsModule::FetchCurveTableFromBlueprint(const FAssetData& AssetData)
+{
+	UBlueprint* BP = Cast<UBlueprint>(AssetData.GetAsset());
+	if (!BP || !BP->GeneratedClass)
+	{
+		return GetDefaultCurveTable();
+	}
+
+	UObject* CDO = BP->GeneratedClass->GetDefaultObject();
+
+	// Attempt reflection search for BuildingResourceAmountOverride
+	FStructProperty* OverrideProp = FindFProperty<FStructProperty>(CDO->GetClass(), TEXT("BuildingResourceAmountOverride"));
+	if (OverrideProp && OverrideProp->Struct == FCurveTableRowHandle::StaticStruct())
+	{
+		FCurveTableRowHandle* HandlePtr = OverrideProp->ContainerPtrToValuePtr<FCurveTableRowHandle>(CDO);
+		if (HandlePtr && HandlePtr->CurveTable)
+		{
+			return HandlePtr->CurveTable;
+		}
+	}
+
+	// Fallback to default specified in KaliToolsPresets.h
+	return GetDefaultCurveTable();
+}
+
+TArray<FName> FKaliToolsModule::GetRowNamesFromCurveTable(UCurveTable* TargetCurveTable)
+{
+	TArray<FName> RowNames;
+	if (TargetCurveTable)
+	{
+		for (const auto& Pair : TargetCurveTable->GetRowMap())
+		{
+			RowNames.Add(Pair.Key);
+		}
+	}
+	return RowNames;
+}
+
+bool FKaliToolsModule::CopyParametersFromBlueprint(const FAssetData& AssetData, FKaliBlueprintSetupParams& OutParams)
+{
+	UBlueprint* BP = Cast<UBlueprint>(AssetData.GetAsset());
+	if (!BP || !BP->GeneratedClass) return false;
+
+	UObject* CDO = BP->GeneratedClass->GetDefaultObject();
+	if (!CDO) return false;
+
+	// 1. Fetch Dynamic Curve Table or fallback
+	UCurveTable* ActiveCurveTable = FetchCurveTableFromBlueprint(AssetData);
+	OutParams.BuildingResourceAmountOverride.CurveTable = ActiveCurveTable;
+
+	// 2. Extract internal property values using reflection
+	if (FStructProperty* ResProp = FindFProperty<FStructProperty>(CDO->GetClass(), TEXT("BuildingResourceAmountOverride")))
+	{
+		FCurveTableRowHandle* Handle = ResProp->ContainerPtrToValuePtr<FCurveTableRowHandle>(CDO);
+		if (Handle)
+		{
+			OutParams.BuildingResourceAmountOverrideRowName = Handle->RowName;
+		}
+	}
+
+	// 3. Extract Booleans and Tags
+	if (FBoolProperty* BoolProp = FindFProperty<FBoolProperty>(CDO->GetClass(), TEXT("bCreatePhys")))
+	{
+		OutParams.bCreatePhys = BoolProp->GetPropertyValue_InContainer(CDO);
+	}
+
+	return true;
+}
+
+bool FKaliToolsModule::ApplyParametersToBlueprint(const FAssetData& AssetData, const FKaliBlueprintSetupParams& InParams)
+{
+	UBlueprint* BP = Cast<UBlueprint>(AssetData.GetAsset());
+	if (!BP || !BP->GeneratedClass) return false;
+
+	CheckoutAndSaveAsset(BP);
+
+	UObject* CDO = BP->GeneratedClass->GetDefaultObject();
+
+	// Write internal parameters via reflection
+	if (FStructProperty* ResProp = FindFProperty<FStructProperty>(CDO->GetClass(), TEXT("BuildingResourceAmountOverride")))
+	{
+		FCurveTableRowHandle* Handle = ResProp->ContainerPtrToValuePtr<FCurveTableRowHandle>(CDO);
+		if (Handle)
+		{
+			Handle->CurveTable = InParams.BuildingResourceAmountOverride.CurveTable;
+			Handle->RowName = InParams.BuildingResourceAmountOverrideRowName;
+		}
+	}
+
+	BP->Modify();
+	FKismetEditorUtilities::CompileBlueprint(BP);
+
+	UPackage* Package = BP->GetOutermost();
+	FEditorFileUtils::PromptForCheckoutAndSave({ Package }, false, false);
+
+	return true;
+}
+
+bool FKaliToolsModule::ValidateBlueprintAsset(const FAssetData& AssetData, TArray<FText>& OutValidationErrors)
+{
+	if (!AssetData.IsValid())
+	{
+		OutValidationErrors.Add(FText::FromString("Selected Asset is Invalid."));
+		return false;
+	}
+	return true;
+}
+
+bool FKaliToolsModule::CheckoutAndSaveAsset(UObject* AssetToSave)
+{
+	if (!AssetToSave) return false;
+	FString PackageName = AssetToSave->GetOutermost()->GetName();
+	if (SourceControlHelpers::IsAvailable())
+	{
+		return SourceControlHelpers::CheckOutFile(PackageName);
+	}
+	return true;
 }
 
 #pragma endregion

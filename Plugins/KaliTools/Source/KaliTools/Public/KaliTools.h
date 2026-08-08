@@ -2,9 +2,11 @@
 
 #pragma once
 #include "CoreMinimal.h"
+#include "KaliToolsPresets.h"
 #include "Modules/ModuleManager.h"
 #include "Framework/Docking/TabManager.h"
 #include "Widgets/Docking/SDockTab.h"
+#include "AssetRegistry/AssetData.h"
 
 
 
@@ -56,6 +58,21 @@ public:
 
 	static void SetForcedLOD(int32 LODLevel);
 	static bool DeleteSingleAssetForList(const FAssetData& AssetDataToDelete);
+	// --- Core Operations ---
+	bool CopyParametersFromBlueprint(const FAssetData& AssetData, FKaliBlueprintSetupParams& OutParams);
+	bool ApplyParametersToBlueprint(const FAssetData& AssetData, const FKaliBlueprintSetupParams& InParams);
+	bool ValidateBlueprintAsset(const FAssetData& AssetData, TArray<FText>& OutValidationErrors);
+	bool CheckoutAndSaveAsset(UObject* AssetToSave);
+
+	// --- Dynamic Data Table / Curve Table Fetchers ---
+	UCurveTable* FetchCurveTableFromBlueprint(const FAssetData& AssetData);
+	TArray<FName> GetRowNamesFromCurveTable(UCurveTable* TargetCurveTable);
+	TArray<FName> GetRowNamesFromDataTable(UDataTable* TargetDataTable);
+
+	// Default Fallbacks
+	UCurveTable* GetDefaultCurveTable();
+	UDataTable* GetDefaultDataTable();
+
 
 #pragma endregion
 };
