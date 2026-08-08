@@ -1,0 +1,101 @@
+topic unreal engine editor - 
+converting bp editor widget to c++
+plugin - uses via ImplToolsWidget .h and cpp editor class
+has sub tabs - ImplBlueprintSetUp file. which we are working now
+
+ResourceType - EFort Resource Type
+
+
+preset function 
+
+
+lets analyse how the process goes
+
+we have BP - that has components which drives thorugh data tables- we know where are they- 
+what we don;t know the exact names of the variables of paramters - we know only they internal names- 
+Our task is to fetch the data from data table that is used by BPs . the main idea that user can set the bp by our UI tab editor tool.
+the flow - at first we show default values from preset :
+Resource - Metal
+Subcategory - 2
+
+all that UI should be drop menu - that user can select. 
+second part - is user press button copy param from selected BP- that means we show the current value that is has on our UI from selected BP - 
+thirt part - the validation tool - the architexture of it - we have in BP euw - we have to rewrite it in code
+after the bp is validated - 
+user could start to setting up paramateres of bp through or UI, once it is done- there is button start setting Up BP - from values that is current on our UI we set up the BP (technical part - the function of setting up should be done via plugin class not widget c++ class) the function should be in plugin- and we save and check out the model. we should have revison modules in our plugin cpp. in widget class we only fetch and send data to our main plugin cpp module. 
+
+fetching functions should be written in plugin module.
+
+tech part requiremets
+the selected asset is  shoudd FAssetData type. the selection is single asset - this is not batch settings - we will do this type in future - for now only single BP . 
+
+names: 
+Plugin main - KaliTools.h KaliTools.cpp
+widget that shows slate - is ImplToolsWidget.h ImplToolsWidget.cpp - which has sub tabs of different tools - 
+each sub tab has slate widget class - 
+the one that we are working is - ImplBlueprintSetUp.h ImplBlueprintSetUp.cpp
+
+what we change from our selected BP
+here is the internal names of parameters that should be changed:
+BuildingResourceAmountOverride
+AttributeInitKeys
+
+so this paramters uses data from that place- ::
+we should fetch them and display in loop in our ui
+
+the main part is figure out - how we write this stuff that will be clean - 
+
+
+ImplBlueprintSetUp.cpp 
+we spitted in two parts:
+in Construct we have titles and we display in slot this two functions : ConstructAssetPanel() and ConstructMainActionsPanel()
+
+ConstructMainActionsPanel - includes
+the view of the selected asset - the icon of BP and name of BP 
+the name of the parent class
+1.section- Reparrent to BP class- which will be drop down menu - the names should be stored in another class .h that has all values - ( this one i don't know how to make , either we should store all presets and values in .h class that we fetch and hardcoded written params like names of Parent BPs.) button -  Reparent to Selected Class
+2.section -Presets: 
+9 Presets button that will change values - 
+
+ConstructMainActionsPanel - includes
+here is main thing goes
+1.section- titles and 
+2.section - Resource Type : drop down box - values()
+3.section Building Resource Amount Override: that has two params
+Curve Table: drop down box - values()
+Row Name - drop down box - values()
+4.section - Attribute Init Keys :
+which has 2 arrays - 
+Index [0]:
+Initialization Cate - drop down box - values()
+Initialization Subcategory - drop down box - values()
+Index [1]:
+Initialization Cate - drop down box - values()
+Initialization Subcategory - drop down box - values()
+5.section - Validate Selected Assets = which will be reused across our plugin so we should make function that runs in our module - the ui could rendered seperatle  - driven from plugin module KaliTools.cpp
+
+6.section -  copy selected BP's Parameters - fetches all nessary params and updated the ui 
+7.section - Start BP Setup- gathers the current values from ui - and also fucntions only if the asset is valid- functions is driven from plugin module KaliTools.cpp
+
+lets change this info in deep - here lets include the architecture of that sub slate widget class - ImplBlueprintSetUp.h ImplBlueprintSetUp.cpp - then we do other tools 
+
+
+update on data tables that is driven - so each bp has this parameter BuildingResourceAmountOverride uses data tables from different data tables- - we should fetch data table and store to current state of that pararmter and show in ui
+as base default params we have use the exact data table "custom path" only as default - we shoud store that values in KaliToolsPresets.h class . 
+
+
+the values that we should use for presets parts;
+ResourceType - EFortResourceType
+Preset - PhysObjPresetData- GameplayTag
+Phys - PhysObjPhysData - GameplayTag
+Buoy - PhysObjBuoyData - GameplayTag
+BuildingType - EFortBuildingType
+BuildingResourceAmountOverride - CurveTableRowHandle
+BuildingResourceAmountOverrideRowName - FName
+ItemAttributeInitCategory - FName
+AttributeInitKeys - FortAttributeInitializationKey
+AttributeInitKeysArray - FortAttributeInitializationKey
+CreatePhys- Boolean
+DestroyBuilding - Boolean
+
+
