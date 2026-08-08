@@ -19,6 +19,9 @@
 #include "FileHelpers.h"
 #include "Editor.h"
 
+#include "Engine/DataTable.h"
+#include "Engine/CurveTable.h"
+
 #define LOCTEXT_NAMESPACE "FKaliToolsModule"
 
 void FKaliToolsModule::StartupModule()
@@ -271,17 +274,10 @@ bool FKaliToolsModule::FetchBlueprintProperties(UBlueprint* TargetBP, const TArr
 {
 	OutValues.Empty();
 
-	if (!TargetBP || !TargetBP->GeneratedClass)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[KaliTools] Target Blueprint or GeneratedClass is invalid."));
-		return false;
-	}
+	if (!TargetBP || !TargetBP->GeneratedClass) return false;
 
 	UObject* CDO = TargetBP->GeneratedClass->GetDefaultObject();
-	if (!CDO)
-	{
-		return false;
-	}
+	if (!CDO) return false;
 
 	for (const FName& PropName : PropertyNames)
 	{
@@ -290,14 +286,32 @@ bool FKaliToolsModule::FetchBlueprintProperties(UBlueprint* TargetBP, const TArr
 		{
 			const void* ValuePtr = Property->ContainerPtrToValuePtr<void>(CDO);
 			FString ExportedText;
-			Property->ExportTextItem_Direct(ExportedText, ValuePtr, nullptr, CDO, PPF_None);
+
+			// Handle Enums natively
+			if (const FEnumProperty* EnumProp = CastField<FEnumProperty>(Property))
+			{
+				UEnum* EnumDef = EnumProp->GetEnum();
+				int64 RawValue = EnumProp->GetUnderlyingProperty()->GetSignedIntPropertyValue(ValuePtr);
+				ExportedText = EnumDef->GetNameStringByValue(RawValue);
+			}
+			else if (const FByteProperty* ByteProp = CastField<FByteProperty>(Property))
+			{
+				if (ByteProp->IsEnum())
+				{
+					// 👈 Use 'ByteProp->Enum' instead of 'ByteProp->GetEnum()'
+					ExportedText = ByteProp->Enum->GetNameStringByValue(ByteProp->GetPropertyValue(ValuePtr));
+				}
+				else
+				{
+					Property->ExportTextItem_Direct(ExportedText, ValuePtr, nullptr, CDO, PPF_None);
+				}
+			}
+			else
+			{
+				Property->ExportTextItem_Direct(ExportedText, ValuePtr, nullptr, CDO, PPF_None);
+			}
 
 			OutValues.Add(PropName, ExportedText);
-			UE_LOG(LogTemp, Log, TEXT("[KaliTools] Fetched '%s': %s"), *PropName.ToString(), *ExportedText);
-		}
-		else
-		{
-			UE_LOG(LogTemp, Warning, TEXT("[KaliTools] Property '%s' not found on '%s'"), *PropName.ToString(), *TargetBP->GetName());
 		}
 	}
 
@@ -308,7 +322,11 @@ bool FKaliToolsModule::ApplyBlueprintProperties(UBlueprint* TargetBP, const TMap
 {
 	if (!TargetBP || !TargetBP->GeneratedClass)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[KaliTools] Cannot apply changes: Blueprint is invalid."));
+		DebugHeader::ShowMsgDialog(
+			EAppMsgType::Ok,
+			TEXT("Failed to apply properties: Selected Blueprint is invalid or uncompiled."),
+			true
+		);
 		return false;
 	}
 
@@ -316,7 +334,12 @@ bool FKaliToolsModule::ApplyBlueprintProperties(UBlueprint* TargetBP, const TMap
 	UPackage* Package = TargetBP->GetOutermost();
 
 	if (!CDO || !Package)
-	{
+	{	
+		DebugHeader::ShowMsgDialog(
+			EAppMsgType::Ok,
+			TEXT("Failed to retrieve CDO or Package for the selected Blueprint."),
+			true
+		);
 		return false;
 	}
 
@@ -370,16 +393,119 @@ bool FKaliToolsModule::ApplyBlueprintProperties(UBlueprint* TargetBP, const TMap
 		if (SaveResult == FEditorFileUtils::EPromptReturnCode::PR_Success)
 		{
 			UE_LOG(LogTemp, Log, TEXT("[KaliTools] Successfully saved Blueprint asset: %s"), *TargetBP->GetName());
+
+			// Success Toast
+			FString NotifyMsg = FString::Printf(TEXT("Successfully updated %s"), *TargetBP->GetName());
+			DebugHeader::ShowNotifyInfo(NotifyMsg);
+
 			return true;
 		}
 		else
 		{
 			UE_LOG(LogTemp, Warning, TEXT("[KaliTools] Save/Checkout failed for: %s"), *TargetBP->GetName());
+
+			
+			FString FailMsg = FString::Printf(TEXT("Failed to save asset or source control checkout failed for:\n%s"), *TargetBP->GetName());
+			DebugHeader::ShowMsgDialog(EAppMsgType::Ok, FailMsg, true);
 		}
+	}
+	else
+	{
+		
+		DebugHeader::ShowMsgDialog(
+			EAppMsgType::Ok,
+			FString::Printf(TEXT("No matching editable properties found to update on '%s'."), *TargetBP->GetName()),
+			true
+		);
 	}
 
 	return bPropertyChanged;
 }
+
+FKaliValidationResult FKaliToolsModule::ValidateBlueprintSetup(UBlueprint* TargetBP)
+{
+	FKaliValidationResult Result;
+
+	// 1. Basic Blueprint Check
+	if (!TargetBP)
+	{
+		Result.bIsValid = false;
+		Result.ValidationErrors.Add(TEXT("Target Blueprint is null."));
+		return Result;
+	}
+
+	if (!TargetBP->GeneratedClass)
+	{
+		Result.bIsValid = false;
+		Result.ValidationErrors.Add(TEXT("Blueprint is not compiled. Please compile the Blueprint first."));
+		return Result;
+	}
+
+	UObject* CDO = TargetBP->GeneratedClass->GetDefaultObject();
+	if (!CDO)
+	{
+		Result.bIsValid = false;
+		Result.ValidationErrors.Add(TEXT("Failed to retrieve CDO (Class Default Object)."));
+		return Result;
+	}
+
+	// 2. Validate Specific Required Properties (DataTables, Curves, etc.)
+	bool bFoundDataTable = false;
+	bool bFoundCurveTable = false;
+
+	for (TFieldIterator<FProperty> PropIt(TargetBP->GeneratedClass); PropIt; ++PropIt)
+	{
+		FProperty* Property = *PropIt;
+
+		// Check for Object Reference Properties (FObjectProperty / FWeakObjectProperty)
+		if (FObjectProperty* ObjProp = CastField<FObjectProperty>(Property))
+		{
+			UClass* PropertyClass = ObjProp->PropertyClass;
+
+			// Check for Data Table Property
+			if (PropertyClass->IsChildOf(UDataTable::StaticClass()))
+			{
+				bFoundDataTable = true;
+				UObject* AssignedValue = ObjProp->GetObjectPropertyValue(ObjProp->ContainerPtrToValuePtr<void>(CDO));
+				if (!AssignedValue)
+				{
+					Result.ValidationWarnings.Add(FString::Printf(TEXT("Property '%s' (DataTable) is unassigned!"), *Property->GetName()));
+				}
+			}
+			// Check for Curve Table Property
+			else if (PropertyClass->IsChildOf(UCurveTable::StaticClass()))
+			{
+				bFoundCurveTable = true;
+				UObject* AssignedValue = ObjProp->GetObjectPropertyValue(ObjProp->ContainerPtrToValuePtr<void>(CDO));
+				if (!AssignedValue)
+				{
+					Result.ValidationWarnings.Add(FString::Printf(TEXT("Property '%s' (CurveTable) is unassigned!"), *Property->GetName()));
+				}
+			}
+		}
+	}
+
+	// 3. Strict Rules (Add errors if crucial properties are missing entirely)
+	if (!bFoundDataTable)
+	{
+		Result.ValidationWarnings.Add(TEXT("No UDataTable reference property found in this Blueprint class."));
+	}
+
+	if (!bFoundCurveTable)
+	{
+		Result.ValidationWarnings.Add(TEXT("No UCurveTable reference property found in this Blueprint class."));
+	}
+
+	// If there are fatal errors, mark invalid
+	if (Result.ValidationErrors.Num() > 0)
+	{
+		Result.bIsValid = false;
+	}
+
+	return Result;
+}
+
+
 #pragma endregion
 
 void FKaliToolsModule::ShutdownModule()

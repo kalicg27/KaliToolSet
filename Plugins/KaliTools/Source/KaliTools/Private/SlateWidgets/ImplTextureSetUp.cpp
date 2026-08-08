@@ -3,21 +3,53 @@
 #include "Modules/ModuleManager.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SEditableTextBox.h"
+#include "Widgets/Input/SComboBox.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/SBoxPanel.h"
 #include "ContentBrowserModule.h"
 #include "IContentBrowserSingleton.h"
 #include "Engine/Blueprint.h"
+#include "DebugHeader.h"
+
+#include "ImplToolsSetTypes.h"   
+#include "Engine/EngineTypes.h" 
+#include "Engine/Engine.h"
+
+
 
 void SImplTextureSetUp::Construct(const FArguments& InArgs)
 {
     TrackedProperties.Empty();
-    TrackedProperties.Add({ FName("InitialLifeSpan"), FString("0.0") });
-    TrackedProperties.Add({ FName("CustomTimeDilation"), FString("1.0") });
 
+    // Standard Text Field
+    TrackedProperties.Add({ FName("InitialLifeSpan"), FString("0.0"), EPropertyRowType::Text });
+    TrackedProperties.Add({ FName("CustomTimeDilation"), FString("1.0"), EPropertyRowType::Text });
+
+    // Enum Registration using Shared Utility
+    FImplToolsPropertyUtils::AddEnumProperty(TrackedProperties, FName("NetDormancy"), StaticEnum<ENetDormancy>(), TEXT("DORM_Awake"));
+    FImplToolsPropertyUtils::AddEnumProperty(TrackedProperties, FName("PhysicsReplicationMode"), StaticEnum<EPhysicsReplicationMode>(), TEXT("Default"));
+    StatusText = FText::FromString("Select a Blueprint asset and click 'Validate' or 'Fetch'.");
     ChildSlot
         [
             SNew(SVerticalBox)
+
+                + SVerticalBox::Slot()
+                .AutoHeight()
+                .Padding(5.0f)
+                [
+                    SAssignNew(StatusTextBlock, STextBlock)
+                        .Text_Lambda([this]() { return StatusText; })
+                        .ColorAndOpacity(FSlateColor(FLinearColor::Yellow))
+                ]
+
+                + SVerticalBox::Slot()
+                .AutoHeight()
+                .Padding(5.0f)
+                [
+                    SNew(SButton)
+                        .Text(FText::FromString("Validate Selected Asset"))
+                        .OnClicked(this, &SImplTextureSetUp::OnValidatePressed)
+                ]
 
                 + SVerticalBox::Slot()
                 .AutoHeight()
@@ -50,15 +82,32 @@ void SImplTextureSetUp::Construct(const FArguments& InArgs)
 
 void SImplTextureSetUp::RebuildPropertyRowsUI()
 {
-    if (!DynamicRowsContainer.IsValid())
-    {
-        return;
-    }
-
+    if (!DynamicRowsContainer.IsValid()) return;
     DynamicRowsContainer->ClearChildren();
 
     for (FPropertyRowData& Row : TrackedProperties)
     {
+        TSharedPtr<SWidget> ValueInputWidget;
+
+        if (Row.RowType == EPropertyRowType::Enum)
+        {
+            // Build SComboBox Dropdown for Enum Properties
+            ValueInputWidget = SAssignNew(Row.ComboBoxWidget, SComboBox<TSharedPtr<FString>>)
+                .OptionsSource(&Row.EnumOptions)
+                .OnGenerateWidget(this, &SImplTextureSetUp::GenerateEnumComboWidget)
+                .OnSelectionChanged(this, &SImplTextureSetUp::OnEnumSelectionChanged, Row.PropertyName)
+                [
+                    SNew(STextBlock)
+                        .Text(this, &SImplTextureSetUp::GetCurrentEnumText, Row.PropertyName)
+                ];
+        }
+        else
+        {
+            // Build SEditableTextBox for Standard Properties
+            ValueInputWidget = SAssignNew(Row.TextBoxWidget, SEditableTextBox)
+                .Text(FText::FromString(Row.CurrentValue));
+        }
+
         DynamicRowsContainer->AddSlot()
             .AutoHeight()
             .Padding(2.0f)
@@ -69,18 +118,48 @@ void SImplTextureSetUp::RebuildPropertyRowsUI()
                     .AutoWidth()
                     .Padding(5.0f)
                     [
-                        SNew(STextBlock)
-                            .Text(FText::FromName(Row.PropertyName))
+                        SNew(STextBlock).Text(FText::FromName(Row.PropertyName))
                     ]
 
                     + SHorizontalBox::Slot()
                     .FillWidth(1.0f)
                     .Padding(5.0f)
                     [
-                        SAssignNew(Row.TextBoxWidget, SEditableTextBox)
-                            .Text(FText::FromString(Row.CurrentValue))
+                        ValueInputWidget.ToSharedRef()
                     ]
             ];
+    }
+}
+
+TSharedRef<SWidget> SImplTextureSetUp::GenerateEnumComboWidget(TSharedPtr<FString> InItem)
+{
+    return SNew(STextBlock).Text(FText::FromString(*InItem));
+}
+
+FText SImplTextureSetUp::GetCurrentEnumText(FName PropertyName) const
+{
+    for (const FPropertyRowData& Row : TrackedProperties)
+    {
+        if (Row.PropertyName == PropertyName)
+        {
+            return FText::FromString(Row.CurrentValue);
+        }
+    }
+    return FText::GetEmpty();
+}
+
+void SImplTextureSetUp::OnEnumSelectionChanged(TSharedPtr<FString> NewValue, ESelectInfo::Type SelectInfo, FName PropertyName)
+{
+    if (!NewValue.IsValid()) return;
+
+    for (FPropertyRowData& Row : TrackedProperties)
+    {
+        if (Row.PropertyName == PropertyName)
+        {
+            Row.CurrentValue = *NewValue;
+            Row.SelectedEnumOption = NewValue;
+            break;
+        }
     }
 }
 
@@ -94,23 +173,14 @@ FReply SImplTextureSetUp::OnFetchPressed()
     UBlueprint* TargetBP = nullptr;
     for (const FAssetData& AssetData : SelectedAssets)
     {
-        // Safe class check for Blueprints in Content Browser
-        UClass* AssetClass = AssetData.GetClass();
-        if (AssetClass && AssetClass->IsChildOf(UBlueprint::StaticClass()))
+        if (AssetData.GetClass() && AssetData.GetClass()->IsChildOf(UBlueprint::StaticClass()))
         {
             TargetBP = Cast<UBlueprint>(AssetData.GetAsset());
-            if (TargetBP)
-            {
-                break;
-            }
+            if (TargetBP) break;
         }
     }
 
-    if (!TargetBP)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("[Slate] Please select a valid Blueprint asset in the Content Browser!"));
-        return FReply::Handled();
-    }
+    if (!TargetBP) return FReply::Handled();
 
     SelectedBlueprint = TargetBP;
 
@@ -128,9 +198,22 @@ FReply SImplTextureSetUp::OnFetchPressed()
             if (const FString* FoundVal = FetchedValues.Find(Row.PropertyName))
             {
                 Row.CurrentValue = *FoundVal;
-                if (Row.TextBoxWidget.IsValid())
+
+                if (Row.RowType == EPropertyRowType::Text && Row.TextBoxWidget.IsValid())
                 {
                     Row.TextBoxWidget->SetText(FText::FromString(*FoundVal));
+                }
+                else if (Row.RowType == EPropertyRowType::Enum && Row.ComboBoxWidget.IsValid())
+                {
+                    // Select matching option in dropdown list
+                    for (const TSharedPtr<FString>& Option : Row.EnumOptions)
+                    {
+                        if (*Option == *FoundVal)
+                        {
+                            Row.ComboBoxWidget->SetSelectedItem(Option);
+                            break;
+                        }
+                    }
                 }
             }
         }
@@ -141,22 +224,122 @@ FReply SImplTextureSetUp::OnFetchPressed()
 
 FReply SImplTextureSetUp::OnApplyPressed()
 {
-    if (!SelectedBlueprint.IsValid())
+    FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
+
+    TArray<FAssetData> SelectedAssets;
+    ContentBrowserModule.Get().GetSelectedAssets(SelectedAssets);
+
+    // 1. Guard against no selection
+    if (SelectedAssets.Num() == 0)
     {
-        UE_LOG(LogTemp, Warning, TEXT("[Slate] No Blueprint selected. Click 'Fetch' first."));
+        StatusText = FText::FromString("No asset selected in Content Browser!");
+        if (StatusTextBlock.IsValid()) StatusTextBlock->SetColorAndOpacity(FSlateColor(FLinearColor::Red));
+
+        DebugHeader::ShowMsgDialog(EAppMsgType::Ok, TEXT("Please select a Blueprint asset before applying changes."), true);
         return FReply::Handled();
     }
 
+    const FAssetData& CurrentAssetData = SelectedAssets[0];
+    FString AssetName = CurrentAssetData.AssetName.ToString();
+
+    // 2. Reject non-Blueprint assets (e.g. StaticMeshes, Textures)
+    UClass* AssetClass = CurrentAssetData.GetClass();
+    bool bIsBlueprint = AssetClass && AssetClass->IsChildOf(UBlueprint::StaticClass());
+
+    if (!bIsBlueprint)
+    {
+        // Reset stored reference so stale Blueprints are never modified
+        SelectedBlueprint.Reset();
+
+        StatusText = FText::FromString(FString::Printf(TEXT("Cannot apply changes: '%s' is not a Blueprint!"), *AssetName));
+        if (StatusTextBlock.IsValid()) StatusTextBlock->SetColorAndOpacity(FSlateColor(FLinearColor::Red));
+
+        // Pop up warning dialog
+        FString ErrorMsg = FString::Printf(TEXT("Selected asset '%s' is not a Blueprint (Class: %s). Changes were NOT applied."), *AssetName, *AssetClass->GetName());
+        DebugHeader::ShowMsgDialog(EAppMsgType::Ok, ErrorMsg, true);
+
+        return FReply::Handled();
+    }
+
+    // 3. Update active target pointer to current selection
+    UBlueprint* TargetBP = Cast<UBlueprint>(CurrentAssetData.GetAsset());
+    SelectedBlueprint = TargetBP;
+
+    if (!TargetBP)
+    {
+        DebugHeader::ShowMsgDialog(EAppMsgType::Ok, TEXT("Failed to load selected Blueprint asset."), true);
+        return FReply::Handled();
+    }
+
+    // 4. Gather property values from UI
     TMap<FName, FString> ValuesToApply;
     for (FPropertyRowData& Row : TrackedProperties)
     {
+        // Grab value directly from text box or stored current value
         if (Row.TextBoxWidget.IsValid())
         {
-            ValuesToApply.Add(Row.PropertyName, Row.TextBoxWidget->GetText().ToString());
+            Row.CurrentValue = Row.TextBoxWidget->GetText().ToString();
         }
+        ValuesToApply.Add(Row.PropertyName, Row.CurrentValue);
     }
 
-    FKaliToolsModule::ApplyBlueprintProperties(SelectedBlueprint.Get(), ValuesToApply);
+    // 5. Apply properties safely
+    bool bSuccess = FKaliToolsModule::ApplyBlueprintProperties(TargetBP, ValuesToApply);
+
+    if (bSuccess)
+    {
+        StatusText = FText::FromString(FString::Printf(TEXT("Successfully updated '%s'! ✅"), *AssetName));
+        if (StatusTextBlock.IsValid()) StatusTextBlock->SetColorAndOpacity(FSlateColor(FLinearColor::Green));
+    }
+
+    return FReply::Handled();
+}
+
+FReply SImplTextureSetUp::OnValidatePressed()
+{
+    FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
+
+    TArray<FAssetData> SelectedAssets;
+    ContentBrowserModule.Get().GetSelectedAssets(SelectedAssets);
+
+    if (SelectedAssets.Num() == 0)
+    {
+        StatusText = FText::FromString("No asset selected in Content Browser!");
+        if (StatusTextBlock.IsValid()) StatusTextBlock->SetColorAndOpacity(FSlateColor(FLinearColor::Red));
+        return FReply::Handled();
+    }
+
+    const FAssetData& AssetData = SelectedAssets[0];
+    FString AssetName = AssetData.AssetName.ToString();
+
+    // Check if the selected asset is a Blueprint
+    UClass* AssetClass = AssetData.GetClass();
+    bool bIsBlueprint = AssetClass && AssetClass->IsChildOf(UBlueprint::StaticClass());
+
+    if (!bIsBlueprint)
+    {
+        // 👈 Display target asset name and state directly in the UI
+        StatusText = FText::FromString(FString::Printf(TEXT("Selected asset '%s' is not a Blueprint!"), *AssetName));
+        if (StatusTextBlock.IsValid()) StatusTextBlock->SetColorAndOpacity(FSlateColor(FLinearColor::Red));
+
+        UE_LOG(LogTemp, Warning, TEXT("[KaliValidator] Asset '%s' is not a Blueprint."), *AssetName);
+        return FReply::Handled();
+    }
+
+    // Asset is a valid Blueprint -> Proceed with backend validation
+    UBlueprint* TargetBP = Cast<UBlueprint>(AssetData.GetAsset());
+    FKaliValidationResult Result = FKaliToolsModule::ValidateBlueprintSetup(TargetBP);
+
+    if (Result.bIsValid && Result.ValidationWarnings.Num() == 0)
+    {
+        StatusText = FText::FromString(FString::Printf(TEXT("'%s' is a valid Blueprint! ✅"), *AssetName));
+        if (StatusTextBlock.IsValid()) StatusTextBlock->SetColorAndOpacity(FSlateColor(FLinearColor::Green));
+    }
+    else
+    {
+        StatusText = FText::FromString(FString::Printf(TEXT("'%s' is a Blueprint with %d warnings! ⚠️"), *AssetName, Result.ValidationWarnings.Num()));
+        if (StatusTextBlock.IsValid()) StatusTextBlock->SetColorAndOpacity(FSlateColor(FLinearColor::Yellow));
+    }
 
     return FReply::Handled();
 }

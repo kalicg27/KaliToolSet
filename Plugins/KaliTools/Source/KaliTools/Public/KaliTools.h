@@ -16,6 +16,12 @@ struct FKaliTabDescriptor
 	FText TooltipText;
 	TFunction<TSharedRef<SWidget>()> WidgetBuilder;
 };
+struct FKaliValidationResult
+{
+	bool bIsValid = true;
+	TArray<FString> ValidationErrors;
+	TArray<FString> ValidationWarnings;
+};
 class FKaliToolsModule : public IModuleInterface
 {
 public:
@@ -70,5 +76,8 @@ public:
 
 	/** Apply string properties back to CDO, recompile, and save/checkout */
 	static bool ApplyBlueprintProperties(UBlueprint* TargetBP, const TMap<FName, FString>& PropertyValuesToApply);
+
+	static FKaliValidationResult ValidateBlueprintSetup(class UBlueprint* TargetBP);
+
 #pragma endregion
 };
