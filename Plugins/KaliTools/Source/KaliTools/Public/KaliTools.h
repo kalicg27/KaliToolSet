@@ -80,4 +80,9 @@ public:
 	static FKaliValidationResult ValidateBlueprintSetup(class UBlueprint* TargetBP);
 
 #pragma endregion
+<<<<<<< HEAD
+=======
+
+
+>>>>>>> test
 };

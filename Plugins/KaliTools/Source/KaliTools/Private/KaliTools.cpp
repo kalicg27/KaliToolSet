@@ -22,6 +22,12 @@
 #include "Engine/DataTable.h"
 #include "Engine/CurveTable.h"
 
+<<<<<<< HEAD
+=======
+#include "CustomStyle/ImplToolsStyle.h"
+
+
+>>>>>>> test
 #define LOCTEXT_NAMESPACE "FKaliToolsModule"
 
 void FKaliToolsModule::StartupModule()
@@ -506,7 +512,10 @@ FKaliValidationResult FKaliToolsModule::ValidateBlueprintSetup(UBlueprint* Targe
 }
 
 
+<<<<<<< HEAD
 #pragma endregion
+=======
+>>>>>>> test
 
 void FKaliToolsModule::ShutdownModule()
 {
