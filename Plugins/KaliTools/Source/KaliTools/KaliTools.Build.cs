@@ -26,7 +26,8 @@ public class KaliTools : ModuleRules
 			new string[]
 			{
                 "Core",
-                "Blutility", "EditorScriptingUtilities", "AssetTools", "UnrealEd", "UMG", "Slate", "SlateCore", "Niagara", "ContentBrowser", "AssetRegistry",
+                "Blutility", "EditorScriptingUtilities", "AssetTools",
+				"UnrealEd", "UMG", "Slate", "SlateCore", "Niagara", "ContentBrowser", "AssetRegistry",
 				"InputCore", "GameplayTags", "Projects"
 				// ... add other public dependencies that you statically link with here ...
 			}
@@ -47,7 +48,7 @@ public class KaliTools : ModuleRules
                 "WorkspaceMenuStructure",
                 "KismetCompiler",
 				"Kismet",
-				"SourceControl"
+				"SourceControl","WorldPartition", "WorldPartitionEditor"
 				
 				// ... add private dependencies that you statically link with here ...	
 			}

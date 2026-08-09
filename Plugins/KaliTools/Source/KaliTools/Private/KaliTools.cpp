@@ -17,16 +17,21 @@
 #include "Engine/Blueprint.h"
 #include "Kismet2/KismetEditorUtilities.h"
 #include "FileHelpers.h"
-#include "Editor.h"
+
 
 #include "Engine/DataTable.h"
 #include "Engine/CurveTable.h"
 
 #include "CustomStyle/ImplToolsStyle.h"
 
+#if WITH_EDITOR
+#include "Editor.h"
+#include "LevelEditor.h"
+#include "SLevelViewport.h"
 #include "LevelEditorViewportClient.h"
 #include "WorldPartition/WorldPartitionSubsystem.h"
-#include "WorldPartition/LoaderAdapter/WorldPartitionQuerySource.h"
+#include "WorldPartition/WorldPartitionQuerySource.h"
+#endif
 
 #define LOCTEXT_NAMESPACE "FKaliToolsModule"
 
@@ -553,7 +558,7 @@ void FKaliToolsModule::LoadWorldPartitionPlaces(const TArray<FString>& RawString
 	}
 
 	UWorldPartitionSubsystem* WPSubsystem = World->GetSubsystem<UWorldPartitionSubsystem>();
-	const FVector BoxExtent(5000.0f, 5000.0f, 5000.0f); // 100 meters square (50m extent in each direction)
+	const FVector BoxExtent(5000.0f, 5000.0f, 5000.0f); // 100 meters bounds (50m half-extent)
 
 	for (int32 Index = 0; Index < RawStrings.Num(); ++Index)
 	{
@@ -562,14 +567,12 @@ void FKaliToolsModule::LoadWorldPartitionPlaces(const TArray<FString>& RawString
 
 		if (ParseBugItString(RawStrings[Index], Location, Rotation))
 		{
-			// Construct data representation for Category 3
 			FLoadedPlaceData PlaceData;
 			PlaceData.PlaceName = FString::Printf(TEXT("Place %d"), Index + 1);
 			PlaceData.Location = Location;
 			PlaceData.Rotation = Rotation;
 			OutLoadedPlaces.Add(PlaceData);
 
-			// Load cells in World Partition
 			if (WPSubsystem)
 			{
 				FBox TargetBox(Location - BoxExtent, Location + BoxExtent);
@@ -578,6 +581,7 @@ void FKaliToolsModule::LoadWorldPartitionPlaces(const TArray<FString>& RawString
 				QuerySource.Box = TargetBox;
 				QuerySource.bShapes = true;
 
+				// Request region loading around parsed coordinate
 				WPSubsystem->LoadUnloadedRegions({ QuerySource });
 			}
 		}
@@ -586,9 +590,16 @@ void FKaliToolsModule::LoadWorldPartitionPlaces(const TArray<FString>& RawString
 
 void FKaliToolsModule::TeleportToLocation(const FVector& Location, const FRotator& Rotation)
 {
-	if (GEditor && GEditor->GetActiveViewport())
+	if (!GEditor)
 	{
-		FLevelEditorViewportClient* ViewportClient = static_cast<FLevelEditorViewportClient*>(GEditor->GetActiveViewport()->GetViewportClient());
+		return;
+	}
+
+	// Fetch active viewport client properly
+	FViewport* ActiveViewport = GEditor->GetActiveViewport();
+	if (ActiveViewport)
+	{
+		FLevelEditorViewportClient* ViewportClient = static_cast<FLevelEditorViewportClient*>(ActiveViewport->GetViewportClient());
 		if (ViewportClient)
 		{
 			ViewportClient->SetViewLocation(Location);
