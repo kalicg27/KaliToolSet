@@ -20,26 +20,39 @@
 
 void SImplTextureSetUp::Construct(const FArguments& InArgs)
 {
+    SelectedAssetsList = InArgs._SelectedAssets;
     TrackedProperties.Empty();
 
-    // Standard Text Field
+    // standart values
     TrackedProperties.Add({ FName("InitialLifeSpan"), FString("0.0"), EPropertyRowType::Text });
     TrackedProperties.Add({ FName("CustomTimeDilation"), FString("1.0"), EPropertyRowType::Text });
 
-    // Enum Registration using Shared Utility
+    //enum properties
     FImplToolsPropertyUtils::AddEnumProperty(TrackedProperties, FName("NetDormancy"), StaticEnum<ENetDormancy>(), TEXT("DORM_Awake"));
     FImplToolsPropertyUtils::AddEnumProperty(TrackedProperties, FName("PhysicsReplicationMode"), StaticEnum<EPhysicsReplicationMode>(), TEXT("Default"));
-    FImplToolsPropertyUtils::AddEnumProperty(TrackedProperties, FName("SpawnCollisionHandlingMethod"),
-        StaticEnum<ESpawnActorCollisionHandlingMethod>(), TEXT("Defaul Watherever"));
-    
-    StatusText = FText::FromString("Select a Blueprint asset and click 'Validate' or 'Fetch'.");
+    FImplToolsPropertyUtils::AddEnumProperty(TrackedProperties, FName("SpawnCollisionHandlingMethod"), StaticEnum<ESpawnActorCollisionHandlingMethod>(), TEXT("AlwaysSpawn"));
 
-    FetchedAssetNameText = FText::FromString("No Blueprint Loaded");
-    FetchedAssetIconBrush = FAppStyle::GetBrush("Icons.Help"); // Fallback icon
+    //curve tables
+    UCurveTable* DefaultCurveTable = nullptr;
+    FImplToolsPropertyUtils::AddCurveTableRowProperty(TrackedProperties, FName("BuildingResourceAmountOverride"), DefaultCurveTable, TEXT("None"));
+
+    // FName Properties (Handled as editable text fields)
+    TrackedProperties.Add({ FName("BuildingResourceAmountOverrideRowName"), FString("None"), EPropertyRowType::Text });
+    TrackedProperties.Add({ FName("ItemAttributeInitCategory"), FString("None"), EPropertyRowType::Text });
+
+    // custom data
+    TrackedProperties.Add({ FName("AttributeInitKeys"), FString(""), EPropertyRowType::Text });
+    TrackedProperties.Add({ FName("AttributeInitKeysArray"), FString(""), EPropertyRowType::Text });
+
+    // Status & UI Initialization
+    StatusText = FText::FromString("Select a Blueprint, Data Table, or Curve Table asset and click 'Fetch'.");
+    FetchedAssetNameText = FText::FromString("No Asset Loaded");
+    FetchedAssetIconBrush = FAppStyle::GetBrush("Icons.Help");
     ChildSlot
         [
             SNew(SVerticalBox)
 
+                // Asset Header Display
                 + SVerticalBox::Slot()
                 .AutoHeight()
                 .Padding(5.0f)
@@ -50,7 +63,6 @@ void SImplTextureSetUp::Construct(const FArguments& InArgs)
                         [
                             SNew(SHorizontalBox)
 
-                                // Asset Class Icon (Same as Content Browser)
                                 + SHorizontalBox::Slot()
                                 .AutoWidth()
                                 .VAlign(VAlign_Center)
@@ -61,7 +73,6 @@ void SImplTextureSetUp::Construct(const FArguments& InArgs)
                                         .DesiredSizeOverride(FVector2D(24.0f, 24.0f))
                                 ]
 
-                                // Asset Name Label
                                 + SHorizontalBox::Slot()
                                 .FillWidth(1.0f)
                                 .VAlign(VAlign_Center)
@@ -72,8 +83,9 @@ void SImplTextureSetUp::Construct(const FArguments& InArgs)
                                 ]
                         ]
                 ]
-            //status
-                + SVerticalBox::Slot()
+
+            // Status Text
+            + SVerticalBox::Slot()
                 .AutoHeight()
                 .Padding(5.0f)
                 [
@@ -82,6 +94,7 @@ void SImplTextureSetUp::Construct(const FArguments& InArgs)
                         .ColorAndOpacity(FSlateColor(FLinearColor::Yellow))
                 ]
 
+                // Action Buttons
                 + SVerticalBox::Slot()
                 .AutoHeight()
                 .Padding(5.0f)
@@ -96,10 +109,11 @@ void SImplTextureSetUp::Construct(const FArguments& InArgs)
                 .Padding(5.0f)
                 [
                     SNew(SButton)
-                        .Text(FText::FromString("Fetch Selected Blueprint Parameters"))
+                        .Text(FText::FromString("Fetch Selected Asset Parameters"))
                         .OnClicked(this, &SImplTextureSetUp::OnFetchPressed)
                 ]
 
+                // Dynamic Rows Container
                 + SVerticalBox::Slot()
                 .AutoHeight()
                 .Padding(5.0f)
@@ -377,8 +391,6 @@ FReply SImplTextureSetUp::OnApplyPressed()
     return FReply::Handled();
 }
 
-
-
 FReply SImplTextureSetUp::OnValidatePressed()
 {
     FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
@@ -427,4 +439,3 @@ FReply SImplTextureSetUp::OnValidatePressed()
 
     return FReply::Handled();
 }
-
