@@ -1,5 +1,4 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-
 #include "KaliTools.h"
 #include "ContentBrowserModule.h"
 #include "DebugHeader.h"
@@ -21,6 +20,16 @@
 
 #include "Engine/DataTable.h"
 #include "Engine/CurveTable.h"
+
+// Correct Viewport & Level Editor Includes
+#include "LevelEditor.h"
+#include "SLevelViewport.h"
+#include "ILevelEditor.h"
+
+// World Partition Includes
+#include "WorldPartition/WorldPartitionEditorSubsystem.h"
+
+
 
 #define LOCTEXT_NAMESPACE "FKaliToolsModule"
 
@@ -506,6 +515,102 @@ FKaliValidationResult FKaliToolsModule::ValidateBlueprintSetup(UBlueprint* Targe
 }
 
 
+#pragma endregion
+
+#pragma region ActinTabFunction
+bool FKaliToolsModule::ParseBugItString(const FString& InString, FVector& OutLocation, FRotator& OutRotation)
+{
+	FString Command = InString;
+	if (Command.StartsWith(TEXT("BugItGo")))
+	{
+		Command.RightChopInline(7);
+	}
+
+	TArray<FString> Tokens;
+	Command.ParseIntoArrayWS(Tokens);
+
+	if (Tokens.Num() >= 6)
+	{
+		OutLocation.X = FCString::Atof(*Tokens[0]);
+		OutLocation.Y = FCString::Atof(*Tokens[1]);
+		OutLocation.Z = FCString::Atof(*Tokens[2]);
+
+		OutRotation.Pitch = FCString::Atof(*Tokens[3]);
+		OutRotation.Yaw = FCString::Atof(*Tokens[4]);
+		OutRotation.Roll = FCString::Atof(*Tokens[5]);
+		return true;
+	}
+	return false;
+}
+
+void FKaliToolsModule::LoadWorldPartitionPlaces(const TArray<FString>& RawStrings, TArray<FLoadedPlaceData>& OutLoadedPlaces)
+{
+	UWorld* World = GEditor ? GEditor->GetEditorWorldContext().World() : nullptr;
+	if (!World)
+	{
+		return;
+	}
+
+	UWorldPartitionEditorSubsystem* WPEditorSubsystem = GEditor->GetEditorSubsystem<UWorldPartitionEditorSubsystem>();
+	const FVector BoxExtent(5000.0f, 5000.0f, 5000.0f); // 100 meters square
+
+	// Unload previously streamed-in regions before loading the new set,
+	// so repeated "Load Places" clicks don't accumulate loaded WP cells.
+	if (WPEditorSubsystem && PreviouslyLoadedRegions.Num() > 0)
+	{
+		WPEditorSubsystem->UnloadSelectedRegions(PreviouslyLoadedRegions);
+		PreviouslyLoadedRegions.Empty();
+	}
+
+	for (int32 Index = 0; Index < RawStrings.Num(); ++Index)
+	{
+		FVector Location;
+		FRotator Rotation;
+
+		if (ParseBugItString(RawStrings[Index], Location, Rotation))
+		{
+			FLoadedPlaceData PlaceData;
+			PlaceData.PlaceName = FString::Printf(TEXT("Place %d"), Index + 1);
+			PlaceData.Location = Location;
+			PlaceData.Rotation = Rotation;
+			OutLoadedPlaces.Add(PlaceData);
+
+			if (WPEditorSubsystem)
+			{
+				FBox TargetBox(Location - BoxExtent, Location + BoxExtent);
+				WPEditorSubsystem->LoadSelectedRegions({ TargetBox });
+				PreviouslyLoadedRegions.Add(TargetBox);
+			}
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[KaliTools] Failed to parse BugItGo string at index %d: %s"), Index, *RawStrings[Index]);
+		}
+	}
+}
+
+void FKaliToolsModule::TeleportToLocation(const FVector& Location, const FRotator& Rotation)
+{
+	if (!GEditor)
+	{
+		return;
+	}
+
+	FLevelEditorModule& LevelEditorModule = FModuleManager::GetModuleChecked<FLevelEditorModule>("LevelEditor");
+	TSharedPtr<ILevelEditor> LevelEditor = LevelEditorModule.GetFirstLevelEditor();
+	if (LevelEditor.IsValid())
+	{
+		TSharedPtr<SLevelViewport> ActiveViewport = LevelEditor->GetActiveViewportInterface();
+		if (ActiveViewport.IsValid())
+		{
+			// FEditorViewportClient is the true type returned by GetAssetViewportClient()
+			FEditorViewportClient& ViewportClient = ActiveViewport->GetAssetViewportClient();
+			ViewportClient.SetViewLocation(Location);
+			ViewportClient.SetViewRotation(Rotation);
+			ViewportClient.Invalidate();
+		}
+	}
+}
 #pragma endregion
 
 void FKaliToolsModule::ShutdownModule()

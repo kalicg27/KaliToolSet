@@ -47,7 +47,8 @@ public class KaliTools : ModuleRules
                 "WorkspaceMenuStructure",
                 "KismetCompiler",
 				"Kismet",
-				"SourceControl"
+				"SourceControl",
+                "WorldPartitionEditor",
 				
 				// ... add private dependencies that you statically link with here ...	
 			}
