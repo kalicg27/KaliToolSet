@@ -86,11 +86,5 @@ public:
 
 #pragma endregion
 
-#pragma region ToolsForActionsTab
-public:
-	void LoadWorldPartitionPlaces(const TArray<FString>& RawStrings, TArray<FLoadedPlaceData>& OutLoadedPlaces);
-	void TeleportToLocation(const FVector& Location, const FRotator& Rotation);
-private:
-	bool ParseBugItString(const FString& InString, FVector& OutLocation, FRotator& OutRotation);
-#pragma endregion
+
 };

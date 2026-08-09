@@ -24,9 +24,6 @@
 
 #include "CustomStyle/ImplToolsStyle.h"
 
-#include "LevelEditorViewportClient.h"
-#include "WorldPartition/WorldPartitionSubsystem.h"
-#include "WorldPartition/LoaderAdapter/WorldPartitionQuerySource.h"
 
 #define LOCTEXT_NAMESPACE "FKaliToolsModule"
 
@@ -515,89 +512,6 @@ FKaliValidationResult FKaliToolsModule::ValidateBlueprintSetup(UBlueprint* Targe
 }
 
 
-#pragma endregion
-
-#pragma region ToolsForActionsTab
-bool FKaliToolsModule::ParseBugItString(const FString& InString, FVector& OutLocation, FRotator& OutRotation)
-{
-	FString Command = InString;
-	if (Command.StartsWith(TEXT("BugItGo")))
-	{
-		Command.RightChopInline(7);
-	}
-
-	TArray<FString> Tokens;
-	Command.ParseIntoArrayWS(Tokens);
-
-	if (Tokens.Num() >= 6)
-	{
-		OutLocation.X = FCString::Atof(*Tokens[0]);
-		OutLocation.Y = FCString::Atof(*Tokens[1]);
-		OutLocation.Z = FCString::Atof(*Tokens[2]);
-
-		OutRotation.Pitch = FCString::Atof(*Tokens[3]);
-		OutRotation.Yaw = FCString::Atof(*Tokens[4]);
-		OutRotation.Roll = FCString::Atof(*Tokens[5]);
-		return true;
-	}
-	return false;
-}
-
-void FKaliToolsModule::LoadWorldPartitionPlaces(const TArray<FString>& RawStrings, TArray<FLoadedPlaceData>& OutLoadedPlaces)
-{
-	UWorld* World = GEditor ? GEditor->GetEditorWorldContext().World() : nullptr;
-	if (!World)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[KaliTools] Editor World is invalid."));
-		return;
-	}
-
-	UWorldPartitionSubsystem* WPSubsystem = World->GetSubsystem<UWorldPartitionSubsystem>();
-	const FVector BoxExtent(5000.0f, 5000.0f, 5000.0f); // 100 meters square (50m extent in each direction)
-
-	for (int32 Index = 0; Index < RawStrings.Num(); ++Index)
-	{
-		FVector Location;
-		FRotator Rotation;
-
-		if (ParseBugItString(RawStrings[Index], Location, Rotation))
-		{
-			// Construct data representation for Category 3
-			FLoadedPlaceData PlaceData;
-			PlaceData.PlaceName = FString::Printf(TEXT("Place %d"), Index + 1);
-			PlaceData.Location = Location;
-			PlaceData.Rotation = Rotation;
-			OutLoadedPlaces.Add(PlaceData);
-
-			// Load cells in World Partition
-			if (WPSubsystem)
-			{
-				FBox TargetBox(Location - BoxExtent, Location + BoxExtent);
-
-				FWorldPartitionQuerySource QuerySource;
-				QuerySource.Box = TargetBox;
-				QuerySource.bShapes = true;
-
-				WPSubsystem->LoadUnloadedRegions({ QuerySource });
-			}
-		}
-	}
-}
-
-void FKaliToolsModule::TeleportToLocation(const FVector& Location, const FRotator& Rotation)
-{
-	if (GEditor && GEditor->GetActiveViewport())
-	{
-		FLevelEditorViewportClient* ViewportClient = static_cast<FLevelEditorViewportClient*>(GEditor->GetActiveViewport()->GetViewportClient());
-		if (ViewportClient)
-		{
-			ViewportClient->SetViewLocation(Location);
-			ViewportClient->SetViewRotation(Rotation);
-			ViewportClient->Invalidate();
-		}
-	}
-}
-#pragma endregion
 
 void FKaliToolsModule::ShutdownModule()
 {
